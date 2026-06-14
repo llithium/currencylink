@@ -1,3 +1,225 @@
+@import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Currency Link · "Broadsheet" theme ──────────────────────────
+   Editorial financial-paper redesign. All colors are CSS custom
+   properties defined on :root for the Morning (light) edition and
+   overridden under [data-theme="dark"] (set on <html>) for the
+   Evening edition, so the toggle is a single attribute flip.
+
+   The variables live on :root — not on .bsheet — because NextUI
+   portals its popovers to <body>, outside the app root. Scoping the
+   tokens to :root lets that portaled content inherit them too. */
+
+:root {
+  --bg: #f1eadc;
+  --paper: #fbf7ee;
+  --ink: #1b1714;
+  --muted: #6a6052;
+  --faint: #978c7b;
+  --rule: #1b1714;
+  --hair: #d6cdbb;
+  --accent: #be4626;
+  --accent-soft: rgba(190, 70, 38, 0.1);
+  --up: #3e6b47;
+  --down: #bb4329;
+  --shadow: rgba(27, 23, 20, 0.14);
+}
+
+:root[data-theme="dark"] {
+  --bg: #15110c;
+  --paper: #1e1812;
+  --ink: #efe7d7;
+  --muted: #a99c86;
+  --faint: #7e7259;
+  --rule: #c9bca3;
+  --hair: #3a3125;
+  --accent: #e0673e;
+  --accent-soft: rgba(224, 103, 62, 0.12);
+  --up: #84b589;
+  --down: #e0855a;
+  --shadow: rgba(0, 0, 0, 0.4);
+}
+
+.bsheet {
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100svh;
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
+  transition:
+    background 0.4s ease,
+    color 0.4s ease;
+}
+
+/* Suppress the browser autofill highlight on the picker / amount inputs. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.bs-wrap {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+@media (max-width: 520px) {
+  .bs-wrap {
+    padding: 0 18px 48px;
+  }
+}
+
+.serif {
+  font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+}
+
+.smallcap {
+  font-family: "Hanken Grotesk", sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+}
+
+/* hairline / section rules */
+.bs-rule {
+  background: var(--rule);
+  height: 1px;
+  transition: background 0.4s ease;
+}
+.bs-rule--heavy {
+  height: 2.5px;
+}
+.bs-rule--hair {
+  background: var(--hair);
+}
+
+/* entrance — resting state visible; only animate when motion is welcome */
+@keyframes bsFade {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: none;
+  }
+}
+.bs-view {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bs-view {
+    animation: bsFade 0.42s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+}
+
+/* borderless serif amount input (Convert) */
+.bs-amount-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: "Instrument Serif", Georgia, serif;
+  color: var(--ink);
+  padding: 0;
+  line-height: 1;
+}
+.bs-amount-input::placeholder {
+  color: var(--faint);
+}
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* masthead tabs */
+.bs-tab {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: "Hanken Grotesk", sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 0 2px 9px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+.bs-tab[data-on="1"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.bs-tab:hover {
+  color: var(--ink);
+}
+
+/* history range buttons */
+.bs-range {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: "Hanken Grotesk", sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 3px 5px;
+  border-bottom: 1.5px solid transparent;
+  transition: color 0.2s;
+}
+.bs-range[data-on="1"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.bs-range:hover {
+  color: var(--ink);
+}
+
+/* round icon buttons (swap / edition toggle) */
+.bs-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  color: var(--ink);
+  border-radius: 999px;
+  transition:
+    transform 0.2s,
+    background 0.3s,
+    border-color 0.3s;
+}
+.bs-iconbtn:hover {
+  transform: rotate(180deg);
+}
+
+.bs-edition-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  padding: 6px 11px 6px 9px;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: "Hanken Grotesk", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition:
+    border-color 0.3s,
+    color 0.3s;
+}

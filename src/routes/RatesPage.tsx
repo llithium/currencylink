@@ -1,44 +1,34 @@
 import { useEffect, useState } from "react";
-import { LoaderData, apiURL } from "./ConversionPage";
-import { Autocomplete, AutocompleteItem } from "@nextui-org/react";
+import { LoaderData, apiURL, isoDaysAgo } from "./ConversionPage";
 import axios from "axios";
 import { useLoaderData, useSearchParams } from "react-router-dom";
-import getSymbolFromCurrency from "currency-symbol-map";
 import { currencyFlags } from "../utils/currencyFlags";
+import CurrencyPicker from "../components/CurrencyPicker";
+import { Chg, Rule, Sparkline } from "../components/Broadsheet";
+import { fmtRate } from "../utils/format";
+
+interface RateRow {
+  code: string;
+  name: string;
+  rate: number;
+  change: number;
+  series: number[];
+}
+
+const GRID = "grid grid-cols-[1fr_64px_auto_70px] items-center gap-x-4";
 
 export default function RatesPage() {
   const { currencyOptions, currencyNames } = useLoaderData() as LoaderData;
-  const [fromCurrency, setFromCurrency] = useState("EUR");
-  const [toCurrency, setToCurrency] = useState("USD");
-  const [selectedFrom, setSelectedFrom] = useState("8");
-  const [, setSelectedTo] = useState("29");
-  const [viewExchangeRates, setViewExchangeRates] = useState<number[]>([]);
-  const [viewExchangeRatesOptions, setViewExchangeRatesOptions] = useState<
-    string[]
-  >([]);
+  const [base, setBase] = useState("USD");
+  const [rows, setRows] = useState<RateRow[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
-    const localSelectedFromCurrency = localStorage.getItem(
-      "selectedFromCurrency",
-    );
     const localFromCurrency = localStorage.getItem("fromCurrency");
-    const localSelectedToCurrency = localStorage.getItem("selectedToCurrency");
-    const localToCurrency = localStorage.getItem("toCurrency");
-
-    localSelectedFromCurrency && setSelectedFrom(localSelectedFromCurrency);
-    localSelectedToCurrency && setSelectedTo(localSelectedToCurrency);
-    localFromCurrency && setFromCurrency(localFromCurrency);
-    localToCurrency && setToCurrency(localToCurrency);
+    localFromCurrency && setBase(localFromCurrency);
     if (searchParams.has("from")) {
-      setSelectedFrom(searchParams.get("from") as string);
       const from = parseInt(searchParams.get("from") as string);
-      setFromCurrency(currencyOptions[from]);
-    }
-    if (searchParams.has("to")) {
-      setSelectedTo(searchParams.get("to") as string);
-      const to = parseInt(searchParams.get("to") as string);
-      setToCurrency(currencyOptions[to]);
+      if (currencyOptions[from]) setBase(currencyOptions[from]);
     }
   }, []);
 
@@ -46,123 +36,108 @@ export default function RatesPage() {
     async function setRates() {
       try {
         const response = await axios.get(
-          apiURL + `/latest?from=${fromCurrency}`,
+          apiURL + `/${isoDaysAgo(30)}..?from=${base}`,
         );
-        const rates = [Object.values<number>(response.data.rates)][0];
-        const ratesOptions = [Object.keys(response.data.rates)][0];
-        setViewExchangeRates([...rates]);
-        setViewExchangeRatesOptions([...ratesOptions]);
+        const byDate = response.data.rates as {
+          [date: string]: { [code: string]: number };
+        };
+        const dates = Object.keys(byDate).sort((a, b) => a.localeCompare(b));
+        if (dates.length === 0) {
+          setRows([]);
+          return;
+        }
+        const latest = byDate[dates[dates.length - 1]];
+        const nextRows: RateRow[] = Object.keys(latest)
+          .sort((a, b) => a.localeCompare(b))
+          .map((code) => {
+            const series = dates
+              .map((d) => byDate[d][code])
+              .filter((v): v is number => typeof v === "number");
+            const last = series[series.length - 1];
+            const prev = series.length >= 2 ? series[series.length - 2] : last;
+            const idx = currencyOptions.indexOf(code);
+            return {
+              code,
+              name: idx >= 0 ? currencyNames[idx] : code,
+              rate: latest[code],
+              change: prev ? ((last - prev) / prev) * 100 : 0,
+              series,
+            };
+          });
+        setRows(nextRows);
       } catch (error) {
         console.log(error);
       }
     }
     setRates();
-  }, [fromCurrency]);
+  }, [base]);
 
-  function handleChangeFromCurrency<Selection>(key: Selection): any {
-    const newKey = key as string;
-    const value = currencyOptions[parseFloat(newKey)];
-
-    if (value) {
-      if (value !== toCurrency) {
-        setFromCurrency(value);
-        localStorage.setItem("fromCurrency", value);
-        setSearchParams((searchParams) => {
-          searchParams.set("from", newKey);
-          return searchParams;
-        });
-        setSelectedFrom(newKey);
-        localStorage.setItem("selectedFromCurrency", newKey);
-      } else {
-        setToCurrency(fromCurrency);
-        setSearchParams((searchParams) => {
-          searchParams.set(
-            "to",
-            currencyOptions.indexOf(fromCurrency).toString(),
-          );
-          return searchParams;
-        });
-        localStorage.setItem("toCurrency", fromCurrency);
-        setSelectedTo(currencyOptions.indexOf(fromCurrency).toString());
-        localStorage.setItem(
-          "selectedToCurrency",
-          currencyOptions.indexOf(fromCurrency).toString(),
-        );
-
-        setFromCurrency(toCurrency);
-        setSearchParams((searchParams) => {
-          searchParams.set(
-            "from",
-            currencyOptions.indexOf(toCurrency).toString(),
-          );
-          return searchParams;
-        });
-        localStorage.setItem("fromCurrency", toCurrency);
-        setSelectedFrom(currencyOptions.indexOf(toCurrency).toString());
-        localStorage.setItem(
-          "selectedFromCurrency",
-          currencyOptions.indexOf(toCurrency).toString(),
-        );
-      }
-    } else {
-    }
+  function handleChangeBase(key: string) {
+    const value = currencyOptions[parseInt(key)];
+    if (!value) return;
+    setBase(value);
+    localStorage.setItem("fromCurrency", value);
+    localStorage.setItem("selectedFromCurrency", key);
+    setSearchParams((searchParams) => {
+      searchParams.set("from", key);
+      return searchParams;
+    });
   }
+
   return (
-    <div
-      className="mx-auto h-[calc(100svh-180px)] w-fit lg:flex lg:flex-row"
-      id="currencyRatesContainer"
-    >
-      <div id="rateOptionContainer" className="optionContainer lg:mr-3">
-        <div className="mb-6">
-          <Autocomplete
-            label="Select Currency"
-            className="w-80 max-w-xs text-lg text-foreground"
-            classNames={{
-              popoverContent: "bg-zinc-900 ",
-            }}
-            startContent={
-              <span
-                className={`exchangeRate fi ${currencyFlags[fromCurrency]} relative rounded-sm`}
-              ></span>
-            }
-            selectedKey={selectedFrom}
-            onSelectionChange={handleChangeFromCurrency}
-          >
-            {currencyOptions.map((option, index) => {
-              return (
-                <AutocompleteItem
-                  className="text-white"
-                  key={index}
-                  value={option + " - " + currencyNames[index]}
-                  startContent={
-                    <span
-                      className={`fi ${currencyFlags[option]} rounded-sm`}
-                    ></span>
-                  }
-                >
-                  {option + " - " + currencyNames[index]}
-                </AutocompleteItem>
-              );
-            })}
-          </Autocomplete>
+    <div className="bs-view pt-[24px]">
+      <div className="mb-[14px] flex items-end justify-between gap-[14px]">
+        <h2 className="serif m-0 whitespace-nowrap font-normal leading-none [font-size:clamp(28px,7vw,38px)]">
+          Exchange Table
+        </h2>
+        <div className="w-[130px] flex-none">
+          <CurrencyPicker
+            aria-label="Base currency"
+            variant="code"
+            currencyOptions={currencyOptions}
+            currencyNames={currencyNames}
+            value={base}
+            onSelectionChange={handleChangeBase}
+          />
         </div>
       </div>
-      <div className="ratesOptionContainer h-full max-h-full w-80 rounded-lg lg:ml-3">
-        <ul className="h-full overflow-auto rounded-lg">
-          {viewExchangeRatesOptions.map((option, index) => {
-            return (
-              <li
-                className="ratesList border-b border-zinc-900/60 bg-zinc-800 px-4 py-1 font-semibold text-foreground lg:py-3"
-                key={index}
-              >
-                <span
-                  className={`exchangeRate fi ${currencyFlags[option]} mr-2 rounded-sm`}
-                ></span>
-                {getSymbolFromCurrency(option)} {viewExchangeRates[index]}
-              </li>
-            );
-          })}
-        </ul>
+
+      <div className={`${GRID} pb-[7px]`}>
+        <span className="smallcap">Currency · per 1 {base}</span>
+        <span className="smallcap text-right">30d</span>
+        <span className="smallcap text-right">Rate</span>
+        <span className="smallcap text-right">24h</span>
+      </div>
+      <Rule />
+
+      {rows.map((row) => (
+        <div key={row.code}>
+          <div className={`${GRID} py-[11px]`}>
+            <span className="flex min-w-0 items-center gap-3">
+              <span
+                className={`fi ${currencyFlags[row.code] ?? ""} flex-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.14)]`}
+                style={{ width: 23, height: 17 }}
+              />
+              <span className="serif overflow-hidden text-ellipsis whitespace-nowrap [font-size:clamp(17px,5vw,21px)]">
+                {row.name}
+              </span>
+            </span>
+            <span className="flex justify-end">
+              <Sparkline data={row.series} />
+            </span>
+            <span className="serif whitespace-nowrap text-right [font-size:clamp(19px,5.5vw,23px)]">
+              {fmtRate(row.rate)}
+            </span>
+            <span className="text-right">
+              <Chg value={row.change} size={11.5} />
+            </span>
+          </div>
+          <Rule variant="hair" />
+        </div>
+      ))}
+
+      <div className="smallcap mt-4 text-center font-semibold !tracking-[1px] text-faint">
+        Rates supplied by the European Central Bank
       </div>
     </div>
   );

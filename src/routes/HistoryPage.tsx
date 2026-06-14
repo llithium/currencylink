@@ -1,9 +1,3 @@
-import {
-  Autocomplete,
-  AutocompleteItem,
-  Button,
-  ButtonGroup,
-} from "@nextui-org/react";
 import { LoaderData, apiURL } from "./ConversionPage";
 import {
   AreaChart,
@@ -17,7 +11,9 @@ import {
 import { useEffect, useState } from "react";
 import axios, { AxiosResponse } from "axios";
 import { useLoaderData, useSearchParams } from "react-router-dom";
-import { currencyFlags } from "../utils/currencyFlags";
+import CurrencyPicker from "../components/CurrencyPicker";
+import { Chg, Rule } from "../components/Broadsheet";
+import { fmtRate } from "../utils/format";
 
 interface HistoryResponse {
   amount: number;
@@ -32,8 +28,40 @@ interface Rate {
 }
 
 interface DataObject {
-  date: string;
-  rate: number;
+  Date: string;
+  Rate: number;
+}
+
+const RANGES = ["1W", "1M", "1Y", "5Y", "10Y", "All"];
+const RANGE_WORD: { [key: string]: string } = {
+  "1W": "week",
+  "1M": "month",
+  "1Y": "year",
+  "5Y": "five years",
+  "10Y": "decade",
+  All: "record",
+};
+
+function setDateForRange(
+  range: string,
+  dates: ReturnType<typeof getEarlierDates>,
+): string {
+  switch (range) {
+    case "1W":
+      return dates.oneWeek;
+    case "1M":
+      return dates.oneMonth;
+    case "1Y":
+      return dates.oneYear;
+    case "5Y":
+      return dates.fiveYears;
+    case "10Y":
+      return dates.tenYears;
+    case "All":
+      return "1999-01-04";
+    default:
+      return dates.oneMonth;
+  }
 }
 
 function getEarlierDates() {
@@ -94,8 +122,8 @@ export default function HistoryPage() {
   const [historyData, setHistoryData] = useState<DataObject[]>([]);
   const [date, setDate] = useState("");
   const [selectedRange, setSelectedRange] = useState("");
-  const [selectedFrom, setSelectedFrom] = useState("8");
-  const [selectedTo, setSelectedTo] = useState("29");
+  const [, setSelectedFrom] = useState("8");
+  const [, setSelectedTo] = useState("29");
   const [searchParams, setSearchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -288,230 +316,204 @@ export default function HistoryPage() {
     }
   }
 
+  function selectRange(r: string) {
+    setDate(setDateForRange(r, getEarlierDates()));
+    setSelectedRange(r);
+    setSearchParams((searchParams) => {
+      searchParams.set("range", r);
+      return searchParams;
+    });
+  }
+
+  const rates = historyData.map((d) => d.Rate);
+  const hasData = rates.length > 0;
+  const cur = hasData ? rates[rates.length - 1] : 0;
+  const first = hasData ? rates[0] : 0;
+  const pct = first ? ((cur - first) / first) * 100 : 0;
+  const hi = hasData ? Math.max(...rates) : 0;
+  const lo = hasData ? Math.min(...rates) : 0;
+  const avg = hasData ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+  const ticks = hasData
+    ? [
+        historyData[0],
+        historyData[Math.floor(historyData.length / 2)],
+        historyData[historyData.length - 1],
+      ]
+    : [];
+  const rangeWord = RANGE_WORD[selectedRange] ?? "month";
+  const verb = pct >= 0 ? "strengthened" : "softened";
+  const fromName = (
+    currencyNames[currencyOptions.indexOf(fromCurrency)] ?? fromCurrency
+  ).toLowerCase();
+  const toName = (
+    currencyNames[currencyOptions.indexOf(toCurrency)] ?? toCurrency
+  ).toLowerCase();
+
   return (
-    <>
-      <div className="flex h-[calc(100svh-120px)] flex-col items-center">
-        <div className="mx-auto w-fit xl:flex xl:flex-row">
-          <div className="optionContainer mb-6 xl:mb-0 xl:mr-3">
-            <div>
-              <Autocomplete
-                label="From"
-                name="from"
-                className="w-80 max-w-xs text-lg text-foreground"
-                classNames={{
-                  popoverContent: "bg-zinc-900",
-                }}
-                startContent={
-                  <span
-                    className={`exchangeRate fi ${currencyFlags[fromCurrency]} relative rounded-sm`}
-                  ></span>
-                }
-                selectedKey={selectedFrom}
-                onSelectionChange={handleChangeFromCurrency}
-              >
-                {currencyOptions.map((option, index) => {
-                  return (
-                    <AutocompleteItem
-                      className="text-white"
-                      key={index}
-                      value={option + " - " + currencyNames[index]}
-                      startContent={
-                        <span
-                          className={`fi ${currencyFlags[option]} rounded-sm`}
-                        ></span>
-                      }
-                    >
-                      {option + " - " + currencyNames[index]}
-                    </AutocompleteItem>
-                  );
-                })}
-              </Autocomplete>
-            </div>
-          </div>
-          <div className="optionContainer xl:ml-3">
-            <div>
-              <Autocomplete
-                label="To"
-                name="to"
-                className="w-80 max-w-xs text-lg text-foreground"
-                classNames={{
-                  popoverContent: "bg-zinc-900",
-                }}
-                startContent={
-                  <span
-                    className={`exchangeRate fi ${currencyFlags[toCurrency]} relative rounded-sm`}
-                  ></span>
-                }
-                value={toCurrency}
-                selectedKey={selectedTo}
-                onSelectionChange={handleChangeToCurrency}
-              >
-                {currencyOptions.map((option, index) => {
-                  return (
-                    <AutocompleteItem
-                      className="text-white"
-                      key={index}
-                      value={option + " - " + currencyNames[index]}
-                      startContent={
-                        <span
-                          className={`fi ${currencyFlags[option]} rounded-sm`}
-                        ></span>
-                      }
-                    >
-                      {option + " - " + currencyNames[index]}
-                    </AutocompleteItem>
-                  );
-                })}
-              </Autocomplete>
-            </div>
-          </div>
+    <div className="bs-view pt-[24px]">
+      <div className="mb-[18px] flex [gap:clamp(14px,5vw,30px)]">
+        <div className="min-w-0 flex-1">
+          <CurrencyPicker
+            aria-label="History from currency"
+            variant="code"
+            currencyOptions={currencyOptions}
+            currencyNames={currencyNames}
+            value={fromCurrency}
+            excludeCode={toCurrency}
+            onSelectionChange={handleChangeFromCurrency}
+          />
         </div>
-        <div id="buttonContainer" className="mx-auto w-fit">
-          <ButtonGroup className="w-80">
-            <Button
-              className={`my-6 w-full min-w-12 px-4 py-2 text-medium ${selectedRange === "1W" ? "dark:bg-pink-950" : "dark:bg-stone-950 dark:hover:bg-zinc-800/60"}`}
-              onClick={() => {
-                const { oneWeek } = getEarlierDates();
-                setDate(oneWeek);
-                setSelectedRange("1W");
-                setSearchParams((searchParams) => {
-                  searchParams.set("range", "1W");
-                  return searchParams;
-                });
-              }}
-            >
-              1W
-            </Button>
-            <Button
-              className={`my-6 w-full min-w-12 px-4 py-2 text-medium ${selectedRange === "1M" ? "dark:bg-pink-950" : "dark:bg-stone-950 dark:hover:bg-zinc-800/60"}`}
-              onClick={() => {
-                const { oneMonth } = getEarlierDates();
-                setDate(oneMonth);
-                setSelectedRange("1M");
-                setSearchParams((searchParams) => {
-                  searchParams.set("range", "1M");
-                  return searchParams;
-                });
-              }}
-            >
-              1M
-            </Button>
-            <Button
-              className={`my-6 w-full min-w-12 px-4 py-2 text-medium ${selectedRange === "1Y" ? "dark:bg-pink-950" : "dark:bg-stone-950 dark:hover:bg-zinc-800/60"}`}
-              onClick={() => {
-                const { oneYear } = getEarlierDates();
-                setDate(oneYear);
-                setSelectedRange("1Y");
-                setSearchParams((searchParams) => {
-                  searchParams.set("range", "1Y");
-                  return searchParams;
-                });
-              }}
-            >
-              1Y
-            </Button>
-            <Button
-              className={`my-6 w-full min-w-12 px-4 py-2 text-medium ${selectedRange === "5Y" ? "dark:bg-pink-950" : "dark:bg-stone-950 dark:hover:bg-zinc-800/60"}`}
-              onClick={() => {
-                const { fiveYears } = getEarlierDates();
-                setDate(fiveYears);
-                setSelectedRange("5Y");
-                setSearchParams((searchParams) => {
-                  searchParams.set("range", "5Y");
-                  return searchParams;
-                });
-              }}
-            >
-              5Y
-            </Button>
-            <Button
-              className={`my-6 w-full min-w-12 px-4 py-2 text-medium ${selectedRange === "10Y" ? "dark:bg-pink-950" : "dark:bg-stone-950 dark:hover:bg-zinc-800/60"}`}
-              onClick={() => {
-                const { tenYears } = getEarlierDates();
-                setDate(tenYears);
-                setSelectedRange("10Y");
-                setSearchParams((searchParams) => {
-                  searchParams.set("range", "10Y");
-                  return searchParams;
-                });
-              }}
-            >
-              10Y
-            </Button>
-            <Button
-              className={`my-6 w-full min-w-12 px-4 py-2 text-medium ${selectedRange === "All" ? "dark:bg-pink-950" : "dark:bg-stone-950 dark:hover:bg-zinc-800/60"}`}
-              onClick={() => {
-                setDate("1999-01-04");
-                setSelectedRange("All");
-                setSearchParams((searchParams) => {
-                  searchParams.set("range", "All");
-                  return searchParams;
-                });
-              }}
-            >
-              All
-            </Button>
-          </ButtonGroup>
+        <div className="flex flex-none items-center text-faint">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          >
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </div>
-        <div style={{ width: "100%", height: "100%" }}>
-          {!isLoading && (
-            <ResponsiveContainer>
-              <AreaChart
-                data={historyData}
-                margin={{
-                  left: 12,
-                  right: 12,
-                }}
-              >
-                <CartesianGrid stroke="#27272a" vertical={false} />
-                <XAxis
-                  dataKey="Date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  interval={"preserveStartEnd"}
-                  tick={{ fill: "#f8f8f8" }}
-                  minTickGap={6}
-                />
-                <YAxis
-                  type="number"
-                  scale={"auto"}
-                  tickCount={8}
-                  // domain={[
-                  //   (dataMin: number) => Math.max(0, dataMin * 0.95),
-                  //   (dataMax: number) => dataMax * 1.02,
-                  // ]}
-                  domain={["auto", "auto"]}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tick={{ fill: "#f8f8f8" }}
-                  // interval={"preserveStartEnd"}
-                  tickFormatter={(value: number) => value.toFixed(2)}
-                />
-                <Tooltip
-                  cursor={false}
-                  contentStyle={{
-                    backgroundColor: "#0c0a09",
-                    border: "0px",
-                    borderRadius: "12px",
-                  }}
-                  wrapperStyle={{
-                    color: "#f8f8f8",
-                  }}
-                />
-                <Area
-                  type="linear"
-                  dataKey="Rate"
-                  stroke="#be185d"
-                  fill="#be185d"
-                  fillOpacity={0.8}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
+        <div className="min-w-0 flex-1">
+          <CurrencyPicker
+            aria-label="History to currency"
+            variant="code"
+            currencyOptions={currencyOptions}
+            currencyNames={currencyNames}
+            value={toCurrency}
+            excludeCode={fromCurrency}
+            onSelectionChange={handleChangeToCurrency}
+          />
         </div>
       </div>
-    </>
+
+      <div className="mb-[12px] flex items-end justify-between gap-[14px]">
+        <div>
+          <div className="smallcap mb-[3px]">
+            {toCurrency} per 1 {fromCurrency}
+          </div>
+          <div className="serif [font-size:clamp(40px,12vw,56px)] [line-height:0.9]">
+            {fmtRate(cur)}
+          </div>
+        </div>
+        <div className="text-right">
+          <Chg value={pct} size={16} />
+          <div className="smallcap mt-1 font-semibold text-muted">
+            past {selectedRange}
+          </div>
+        </div>
+      </div>
+
+      <div className="serif mb-[14px] italic leading-[1.3] text-muted [font-size:clamp(15px,4.3vw,18px)]">
+        The {fromName} has {verb} {Math.abs(pct).toFixed(2)}% against the{" "}
+        {toName} over the past {rangeWord}.
+      </div>
+
+      <Rule variant="hair" />
+
+      <div
+        className="my-2 [height:clamp(180px,42vw,248px)]"
+        style={{ width: "100%" }}
+      >
+        {!isLoading && hasData && (
+          <ResponsiveContainer>
+            <AreaChart data={historyData} margin={{ left: 6, right: 6, top: 8 }}>
+              <CartesianGrid
+                stroke="var(--hair)"
+                vertical={false}
+                strokeWidth={1}
+              />
+              <XAxis dataKey="Date" hide />
+              <YAxis type="number" domain={["auto", "auto"]} hide />
+              <Tooltip
+                cursor={false}
+                contentStyle={{
+                  backgroundColor: "var(--paper)",
+                  border: "1px solid var(--ink)",
+                  borderRadius: 0,
+                  boxShadow: "5px 7px 0 var(--shadow)",
+                }}
+                labelStyle={{ color: "var(--muted)" }}
+                itemStyle={{ color: "var(--ink)" }}
+                formatter={(value: number) => [fmtRate(value), toCurrency]}
+              />
+              <Area
+                type="linear"
+                dataKey="Rate"
+                stroke="var(--accent)"
+                strokeWidth={2.2}
+                strokeLinejoin="round"
+                fill="var(--accent-soft)"
+                fillOpacity={1}
+                isAnimationActive={false}
+                dot={(props: { cx?: number; cy?: number; index?: number }) => {
+                  const isLast = props.index === historyData.length - 1;
+                  return (
+                    <circle
+                      key={props.index}
+                      cx={props.cx}
+                      cy={props.cy}
+                      r={isLast ? 4 : 0}
+                      fill="var(--accent)"
+                      stroke="none"
+                    />
+                  );
+                }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div className="flex justify-between">
+        {ticks.map((t, i) => (
+          <span
+            key={i}
+            className="smallcap whitespace-nowrap font-semibold !text-[10px] text-faint"
+          >
+            {t.Date}
+          </span>
+        ))}
+      </div>
+
+      <Rule variant="hair" className="mt-2" />
+
+      <div className="my-4 flex flex-wrap justify-center gap-x-1 gap-y-[6px]">
+        {RANGES.map((r, i) => (
+          <span key={r} className="flex items-center">
+            <button
+              type="button"
+              className="bs-range"
+              data-on={r === selectedRange ? 1 : 0}
+              onClick={() => selectRange(r)}
+            >
+              {r}
+            </button>
+            {i < RANGES.length - 1 && (
+              <span className="self-center text-hair">·</span>
+            )}
+          </span>
+        ))}
+      </div>
+
+      <Rule variant="hair" className="mb-[14px]" />
+
+      <div className="flex justify-between gap-3">
+        {([
+          ["High", hi],
+          ["Low", lo],
+          ["Average", avg],
+        ] as [string, number][]).map(([label, value]) => (
+          <div key={label} className="flex-1 text-center">
+            <div className="smallcap mb-[5px]">{label}</div>
+            <div className="serif [font-size:clamp(20px,6vw,26px)]">
+              {fmtRate(value)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

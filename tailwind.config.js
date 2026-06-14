@@ -10,7 +10,21 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["-apple-system", "BlinkMacSystemFont", "Manrope", "sans-serif"],
+        sans: ["Hanken Grotesk", "system-ui", "sans-serif"],
+        serif: ["Instrument Serif", "Georgia", "Times New Roman", "serif"],
+      },
+      colors: {
+        bg: "var(--bg)",
+        paper: "var(--paper)",
+        ink: "var(--ink)",
+        muted: "var(--muted)",
+        faint: "var(--faint)",
+        rule: "var(--rule)",
+        hair: "var(--hair)",
+        accent: "var(--accent)",
+        "accent-soft": "var(--accent-soft)",
+        up: "var(--up)",
+        down: "var(--down)",
       },
     },
   },
