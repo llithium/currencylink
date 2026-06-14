@@ -34,7 +34,7 @@ const router = createBrowserRouter([
             loader: ConversionPageLoader,
           },
           {
-            path: "/History",
+            path: "/history",
             element: <HistoryPage />,
             loader: ConversionPageLoader,
           },
