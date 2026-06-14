@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import pluralizeCurrencyName from "../utils/pluralizeCurrencyName";
 import { currencyFlags } from "../utils/currencyFlags";
 
-export const apiURL = "https://api.frankfurter.app";
+export const apiURL = "https://api.frankfurter.dev/v1";
 
 export async function ConversionPageLoader() {
   try {
