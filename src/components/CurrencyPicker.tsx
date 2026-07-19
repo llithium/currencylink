@@ -17,14 +17,14 @@ interface CurrencyPickerProps {
   onSelectionChange: (key: string) => void;
   /** currency code to disable in the list (the opposite side of a pair) */
   excludeCode?: string;
-  /** "hero" shows flag + code chip + full serif name; "code" shows flag + serif code */
+  /** kept for call-site compatibility; both render the compact code pill */
   variant?: "hero" | "code";
   className?: string;
   "aria-label": string;
 }
 
 const flag = (code: string) =>
-  `fi ${currencyFlags[code] ?? ""} rounded-[1px]`;
+  `fi ${currencyFlags[code] ?? ""} rounded-[3px]`;
 
 export default function CurrencyPicker({
   currencyOptions,
@@ -32,7 +32,6 @@ export default function CurrencyPicker({
   value,
   onSelectionChange,
   excludeCode,
-  variant = "hero",
   className,
   "aria-label": ariaLabel,
 }: CurrencyPickerProps) {
@@ -50,11 +49,7 @@ export default function CurrencyPicker({
   // out of sync with the currency actually in use.
   const selectedKey = String(currencyOptions.indexOf(value));
   const selected = allItems.find((it) => it.code === value);
-  const display = selected
-    ? variant === "hero"
-      ? selected.name
-      : selected.code
-    : "";
+  const display = selected ? selected.code : "";
 
   const [inputValue, setInputValue] = useState(display);
   const [items, setItems] = useState<Item[]>(allItems);
@@ -88,7 +83,6 @@ export default function CurrencyPicker({
     <Autocomplete
       aria-label={ariaLabel}
       className={className}
-      variant="underlined"
       isClearable={false}
       allowsCustomValue={false}
       menuTrigger="focus"
@@ -102,50 +96,63 @@ export default function CurrencyPicker({
       }}
       onOpenChange={(open) => {
         if (open) {
+          // Clear the trigger text so typing searches fresh instead of
+          // appending to the current code (e.g. "BRLusd" → no matches).
+          setInputValue("");
           setItems(allItems);
         } else {
           setInputValue(display);
           setItems(allItems);
         }
       }}
+      placeholder="Search…"
       onSelectionChange={(key) => {
         if (key == null) return;
         onSelectionChange(String(key));
         setItems(allItems);
         const next = allItems.find((it) => it.key === String(key));
-        if (next) setInputValue(variant === "hero" ? next.name : next.code);
+        if (next) setInputValue(next.code);
+        // menuTrigger="focus" reopens the panel when NextUI restores focus
+        // to the input after picking — drop focus once that restore has
+        // happened so the panel actually closes.
+        setTimeout(
+          () => (document.activeElement as HTMLElement | null)?.blur?.(),
+          80,
+        );
       }}
       startContent={
         selected && (
-          <span className="flex flex-none items-center gap-[9px]">
-            <span
-              className={`${flag(selected.code)} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)]`}
-              style={flagStyle}
-            />
-            {variant === "hero" && (
-              <span className="font-sans text-[10px] font-bold uppercase tracking-[1.2px] text-faint">
-                {selected.code}
-              </span>
-            )}
-          </span>
+          <span
+            className={`${flag(selected.code)} flex-none shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]`}
+            style={flagStyle}
+          />
         )
       }
+      popoverProps={{
+        // Fixed panel width so item names aren't clipped by a narrow trigger.
+        className: "w-[280px] min-w-[280px]",
+      }}
+      listboxProps={{
+        className: "p-0",
+      }}
+      scrollShadowProps={{
+        className: "max-h-[248px]",
+      }}
       classNames={{
-        base: "text-foreground",
+        base: "text-text",
         clearButton: "hidden",
-        selectorButton: "text-ink",
+        selectorButton: "text-dim",
         popoverContent:
-          "!bg-paper rounded-none border border-ink p-[5px] shadow-[5px_7px_0_var(--shadow)]",
+          "!bg-card rounded-[12px] border border-border-hi p-[5px] shadow-[0_18px_44px_rgba(0,0,0,0.7)]",
+        listboxWrapper: "max-h-[248px] overflow-y-auto",
         listbox: "p-0",
       }}
       inputProps={{
         classNames: {
           inputWrapper:
-            "!bg-transparent h-auto min-h-0 border-b-[1.5px] border-ink px-0 pb-[7px] pt-[5px] shadow-none after:bg-accent data-[hover=true]:border-ink",
+            "!bg-card-hi h-auto min-h-0 rounded-[10px] border border-border px-[13px] py-[9px] shadow-none data-[hover=true]:!bg-card-hi data-[focus=true]:border-border-hi group-data-[focus=true]:border-border-hi",
           input:
-            variant === "hero"
-              ? "font-serif !text-ink !bg-transparent min-w-0 text-[24px] leading-none placeholder:!text-faint"
-              : "font-serif !text-ink !bg-transparent min-w-0 text-[23px] leading-none tracking-[0.3px] placeholder:!text-faint",
+            "font-sans !text-text !bg-transparent min-w-0 text-[14px] font-bold leading-none tracking-[0.3px] placeholder:!text-dim",
           innerWrapper: "!flex min-w-0 flex-nowrap items-center gap-[9px]",
         },
       }}
@@ -156,19 +163,19 @@ export default function CurrencyPicker({
           textValue={`${item.code} ${item.name}`}
           startContent={
             <span
-              className={`${flag(item.code)} flex-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)]`}
+              className={`${flag(item.code)} flex-none shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]`}
               style={{ width: "1.5em", height: "1.08em" }}
             />
           }
           classNames={{
-            base: "rounded-none px-[9px] py-[8px] data-[hover=true]:bg-accent-soft data-[selectable=true]:focus:bg-accent-soft data-[selected=true]:bg-accent-soft",
+            base: "rounded-[8px] px-[9px] py-[8px] text-text data-[hover=true]:bg-card-hi data-[selectable=true]:focus:bg-card-hi data-[selected=true]:bg-card-hi data-[selected=true]:shadow-[inset_2px_0_0_var(--accent)]",
           }}
         >
           <span className="flex items-center gap-[11px]">
-            <span className="w-10 flex-none font-sans text-[11px] font-bold tracking-[0.6px] text-accent">
+            <span className="w-10 flex-none font-sans text-[13.5px] font-bold text-text">
               {item.code}
             </span>
-            <span className="overflow-hidden text-ellipsis whitespace-nowrap font-serif text-[18px] text-ink">
+            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] text-mid">
               {item.name}
             </span>
           </span>

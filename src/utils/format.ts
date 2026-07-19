@@ -1,4 +1,4 @@
-// Number formatting helpers for the Broadsheet redesign.
+// Number formatting helpers for the Signal redesign.
 
 // Adaptive precision, matching the original app's look:
 // ≥1000 grouped 2dp · ≥100 → 2dp · ≥10 → 3dp · ≥1 → 4dp · else 5dp
@@ -18,6 +18,21 @@ export function fmtMoney(n: number, dp = 2): string {
     minimumFractionDigits: dp,
     maximumFractionDigits: dp,
   });
+}
+
+// Money with a currency-specific symbol ("A$819.70", "€864.53", "¥820").
+// A bare symbol lookup gives "$" for AUD/CAD/HKD/… which reads as USD;
+// Intl disambiguates and applies the currency's own decimal convention.
+export function fmtCurrency(n: number, code: string): string {
+  if (!isFinite(n)) return "—";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+    }).format(n);
+  } catch {
+    return fmtMoney(n);
+  }
 }
 
 // Integer → English words (for the editorial longhand caption).

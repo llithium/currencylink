@@ -6,13 +6,18 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Rule } from "../components/Broadsheet";
+import axios from "axios";
+import { Chg } from "../components/Signal";
+import { apiURL, isoDaysAgo } from "./ConversionPage";
+import { fmtRate } from "../utils/format";
 
 const TABS: { key: string; label: string; path: string }[] = [
   { key: "convert", label: "Convert", path: "/" },
   { key: "rates", label: "Rates", path: "/rates" },
   { key: "history", label: "History", path: "/history" },
 ];
+
+const TICKER = ["EUR", "GBP", "JPY", "CHF", "AUD", "CAD", "CNY"];
 
 function activeTab(pathname: string): string {
   const p = pathname.toLowerCase();
@@ -21,97 +26,92 @@ function activeTab(pathname: string): string {
   return "convert";
 }
 
+interface TickerEntry {
+  rate: number;
+  change: number;
+}
+
 function Root() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [theme, setTheme] = useState<"light" | "dark">(
-    () => (localStorage.getItem("cl-theme") as "light" | "dark") || "light",
-  );
+  const [ticker, setTicker] = useState<Record<string, TickerEntry>>({});
 
+  // Live USD-base ticker: latest rates + a 24h change derived from the two
+  // most recent business days.
   useEffect(() => {
-    localStorage.setItem("cl-theme", theme);
-    // Set on <html> so NextUI's body-portaled popovers inherit the edition.
-    document.documentElement.setAttribute("data-theme", theme);
-    document.body.style.background = theme === "dark" ? "#15110C" : "#F1EADC";
-  }, [theme]);
+    async function loadTicker() {
+      try {
+        const to = TICKER.join(",");
+        const history = await axios.get(
+          `${apiURL}/${isoDaysAgo(7)}..?from=USD&to=${to}`,
+        );
+        const byDate = history.data.rates as {
+          [date: string]: { [code: string]: number };
+        };
+        const dates = Object.keys(byDate).sort((a, b) => a.localeCompare(b));
+        if (dates.length === 0) return;
+        const latest = byDate[dates[dates.length - 1]];
+        const next: Record<string, TickerEntry> = {};
+        for (const code of TICKER) {
+          const series = dates
+            .map((d) => byDate[d]?.[code])
+            .filter((v): v is number => typeof v === "number");
+          const last = series[series.length - 1] ?? latest[code];
+          const prev = series.length >= 2 ? series[series.length - 2] : last;
+          next[code] = {
+            rate: latest[code] ?? last,
+            change: prev ? ((last - prev) / prev) * 100 : 0,
+          };
+        }
+        setTicker(next);
+      } catch (error) {
+        console.log(error);
+      }
+    }
+    loadTicker();
+  }, []);
 
   const current = activeTab(location.pathname);
-  const date = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 
   return (
     <NextUIProvider navigate={navigate}>
-      <div className="bsheet" data-theme={theme}>
-        <div className="bs-wrap">
-          <header className="pt-[22px]">
-            <Rule variant="heavy" />
-
-            <div className="relative flex items-center justify-center px-0 pb-[9px] pt-[12px]">
-              <h1 className="serif m-0 text-center font-normal leading-none text-ink [font-size:clamp(38px,9vw,58px)] [letter-spacing:1px]">
-                Currency&nbsp;Link
-              </h1>
-              <button
-                type="button"
-                title="Toggle edition"
-                aria-label="Toggle Morning / Evening edition"
-                onClick={() =>
-                  setTheme((t) => (t === "dark" ? "light" : "dark"))
-                }
-                className="bs-edition-toggle absolute right-0 top-1/2 -translate-y-1/2"
-              >
-                {theme === "dark" ? (
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  >
-                    <circle cx="12" cy="12" r="4.2" />
-                    <path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" />
-                  </svg>
-                ) : (
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 14.5A8 8 0 119.5 4a6.5 6.5 0 1010.5 10.5z" />
-                  </svg>
-                )}
-                <span>{theme === "dark" ? "Evening" : "Morning"}</span>
-              </button>
-            </div>
-
-            <Rule />
-
-            <div className="flex items-center justify-between py-2">
-              <span className="smallcap">Mid-Market Exchange</span>
-              <span className="smallcap whitespace-nowrap !text-[10px] font-semibold !tracking-[1px] text-muted">
-                {date}
+      <div className="signal">
+        <div className="signal-glow" />
+        <div className="signal-wrap">
+          <header>
+            <div className="flex items-center gap-[10px] pb-[12px] pt-[20px]">
+              <span className="signal-diamond" />
+              <span className="text-[16.5px] font-bold leading-none tracking-[-0.2px] text-text">
+                Currency Link
+              </span>
+              <span className="micro ml-auto !text-accent">
+                Live · Mid-Market
               </span>
             </div>
 
-            <Rule variant="hair" />
+            <div className="signal-ticker">
+              {TICKER.map((code) => {
+                const t = ticker[code];
+                return (
+                  <span
+                    key={code}
+                    className="mono inline-flex items-baseline gap-[7px] text-[11px] text-mid"
+                  >
+                    <span className="font-semibold text-text">{code}</span>
+                    {t ? fmtRate(t.rate) : "—"}
+                    {t && <Chg value={t.change} size={10.5} />}
+                  </span>
+                );
+              })}
+            </div>
 
-            <nav className="flex justify-center pt-[12px] [gap:clamp(20px,7vw,40px)]">
+            <nav className="flex gap-2 py-[16px]">
               {TABS.map(({ key, label, path }) => (
                 <button
                   key={key}
                   type="button"
-                  className="bs-tab"
+                  className="signal-tab"
                   data-on={current === key ? 1 : 0}
                   onClick={() =>
                     navigate({ pathname: path, search: `${searchParams}` })
@@ -121,25 +121,11 @@ function Root() {
                 </button>
               ))}
             </nav>
-
-            <Rule variant="hair" />
           </header>
 
           <main key={current}>
             <Outlet />
           </main>
-
-          <footer className="mt-10">
-            <Rule variant="hair" className="mb-[10px]" />
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="smallcap font-semibold !tracking-[1px] text-faint">
-                Currency Link
-              </span>
-              <span className="smallcap font-semibold !tracking-[1px] text-faint">
-                {theme === "dark" ? "Evening" : "Morning"} Edition
-              </span>
-            </div>
-          </footer>
         </div>
       </div>
     </NextUIProvider>

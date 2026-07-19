@@ -1,27 +1,11 @@
-// Small presentational atoms shared across the Broadsheet views.
+// Small presentational atoms shared across the Signal views.
 
-type RuleProps = {
-  variant?: "heavy" | "section" | "hair";
-  className?: string;
-};
-
-/** Horizontal rule. heavy = 2.5px masthead bar, section = 1px ink, hair = 1px faint. */
-export function Rule({ variant = "section", className = "" }: RuleProps) {
-  const cls =
-    variant === "heavy"
-      ? "bs-rule bs-rule--heavy"
-      : variant === "hair"
-        ? "bs-rule bs-rule--hair"
-        : "bs-rule";
-  return <div className={`${cls} ${className}`} />;
-}
-
-/** Signed change %, with ▲/▼ and up/down coloring. */
-export function Chg({ value, size = 12.5 }: { value: number; size?: number }) {
+/** Signed change %, mono with ▲/▼ and up/down coloring. */
+export function Chg({ value, size = 12 }: { value: number; size?: number }) {
   const up = value >= 0;
   return (
     <span
-      className="whitespace-nowrap font-sans font-bold"
+      className="mono whitespace-nowrap font-medium"
       style={{ fontSize: size, color: up ? "var(--up)" : "var(--down)" }}
     >
       {up ? "▲" : "▼"} {Math.abs(value).toFixed(2)}%
@@ -33,6 +17,7 @@ type SparklineProps = {
   data: number[];
   width?: number;
   height?: number;
+  /** "auto" colors by direction (up/down); otherwise a CSS color. */
   stroke?: string;
   strokeWidth?: number;
 };
@@ -40,9 +25,9 @@ type SparklineProps = {
 /** Minimal inline-SVG sparkline — series of numbers → mini path. */
 export function Sparkline({
   data,
-  width = 56,
-  height = 20,
-  stroke = "var(--faint)",
+  width = 60,
+  height = 22,
+  stroke = "auto",
   strokeWidth = 1.4,
 }: SparklineProps) {
   if (!data || data.length < 2) return null;
@@ -54,6 +39,9 @@ export function Sparkline({
   const line = data
     .map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
     .join(" ");
+  const up = data[data.length - 1] >= data[0];
+  const color =
+    stroke === "auto" ? (up ? "var(--up)" : "var(--down)") : stroke;
   return (
     <svg
       width={width}
@@ -64,7 +52,7 @@ export function Sparkline({
       <path
         d={line}
         fill="none"
-        stroke={stroke}
+        stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
