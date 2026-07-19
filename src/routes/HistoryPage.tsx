@@ -4,7 +4,6 @@ import {
   Area,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
@@ -12,7 +11,7 @@ import { useEffect, useState } from "react";
 import axios, { AxiosResponse } from "axios";
 import { useLoaderData, useSearchParams } from "react-router-dom";
 import CurrencyPicker from "../components/CurrencyPicker";
-import { Chg, Rule } from "../components/Broadsheet";
+import { Chg } from "../components/Signal";
 import { fmtRate } from "../utils/format";
 
 interface HistoryResponse {
@@ -33,14 +32,6 @@ interface DataObject {
 }
 
 const RANGES = ["1W", "1M", "1Y", "5Y", "10Y", "All"];
-const RANGE_WORD: { [key: string]: string } = {
-  "1W": "week",
-  "1M": "month",
-  "1Y": "year",
-  "5Y": "five years",
-  "10Y": "decade",
-  All: "record",
-};
 
 function setDateForRange(
   range: string,
@@ -332,30 +323,16 @@ export default function HistoryPage() {
   const pct = first ? ((cur - first) / first) * 100 : 0;
   const hi = hasData ? Math.max(...rates) : 0;
   const lo = hasData ? Math.min(...rates) : 0;
-  const avg = hasData ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
-  const ticks = hasData
-    ? [
-        historyData[0],
-        historyData[Math.floor(historyData.length / 2)],
-        historyData[historyData.length - 1],
-      ]
-    : [];
-  const rangeWord = RANGE_WORD[selectedRange] ?? "month";
-  const verb = pct >= 0 ? "strengthened" : "softened";
-  const fromName = (
-    currencyNames[currencyOptions.indexOf(fromCurrency)] ?? fromCurrency
-  ).toLowerCase();
-  const toName = (
-    currencyNames[currencyOptions.indexOf(toCurrency)] ?? toCurrency
-  ).toLowerCase();
+  const startDate = hasData ? historyData[0].Date : "";
+  const endDate = hasData ? historyData[historyData.length - 1].Date : "";
 
   return (
-    <div className="bs-view pt-[24px]">
-      <div className="mb-[18px] flex [gap:clamp(14px,5vw,30px)]">
-        <div className="min-w-0 flex-1">
+    <div className="signal-view">
+      {/* Pair pickers */}
+      <div className="flex items-center gap-[10px]">
+        <div className="min-w-0 flex-1 lg:max-w-[220px]">
           <CurrencyPicker
             aria-label="History from currency"
-            variant="code"
             currencyOptions={currencyOptions}
             currencyNames={currencyNames}
             value={fromCurrency}
@@ -363,23 +340,10 @@ export default function HistoryPage() {
             onSelectionChange={handleChangeFromCurrency}
           />
         </div>
-        <div className="flex flex-none items-center text-faint">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          >
-            <path d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
+        <span className="mono flex-none text-accent">⇄</span>
+        <div className="min-w-0 flex-1 lg:max-w-[220px]">
           <CurrencyPicker
             aria-label="History to currency"
-            variant="code"
             currencyOptions={currencyOptions}
             currencyNames={currencyNames}
             value={toCurrency}
@@ -387,132 +351,126 @@ export default function HistoryPage() {
             onSelectionChange={handleChangeToCurrency}
           />
         </div>
+        <span className="micro ml-auto flex-none whitespace-nowrap">
+          past {selectedRange}
+        </span>
       </div>
 
-      <div className="mb-[12px] flex items-end justify-between gap-[14px]">
-        <div>
-          <div className="smallcap mb-[3px]">
-            {toCurrency} per 1 {fromCurrency}
-          </div>
-          <div className="serif [font-size:clamp(40px,12vw,56px)] [line-height:0.9]">
-            {fmtRate(cur)}
-          </div>
-        </div>
-        <div className="text-right">
-          <Chg value={pct} size={16} />
-          <div className="smallcap mt-1 font-semibold text-muted">
-            past {selectedRange}
-          </div>
-        </div>
-      </div>
-
-      <div className="serif mb-[14px] italic leading-[1.3] text-muted [font-size:clamp(15px,4.3vw,18px)]">
-        The {fromName} has {verb} {Math.abs(pct).toFixed(2)}% against the{" "}
-        {toName} over the past {rangeWord}.
-      </div>
-
-      <Rule variant="hair" />
-
-      <div
-        className="my-2 [height:clamp(180px,42vw,248px)]"
-        style={{ width: "100%" }}
-      >
-        {!isLoading && hasData && (
-          <ResponsiveContainer>
-            <AreaChart data={historyData} margin={{ left: 6, right: 6, top: 8 }}>
-              <CartesianGrid
-                stroke="var(--hair)"
-                vertical={false}
-                strokeWidth={1}
-              />
-              <XAxis dataKey="Date" hide />
-              <YAxis type="number" domain={["auto", "auto"]} hide />
-              <Tooltip
-                cursor={false}
-                contentStyle={{
-                  backgroundColor: "var(--paper)",
-                  border: "1px solid var(--ink)",
-                  borderRadius: 0,
-                  boxShadow: "5px 7px 0 var(--shadow)",
-                }}
-                labelStyle={{ color: "var(--muted)" }}
-                itemStyle={{ color: "var(--ink)" }}
-                formatter={(value: number) => [fmtRate(value), toCurrency]}
-              />
-              <Area
-                type="linear"
-                dataKey="Rate"
-                stroke="var(--accent)"
-                strokeWidth={2.2}
-                strokeLinejoin="round"
-                fill="var(--accent-soft)"
-                fillOpacity={1}
-                isAnimationActive={false}
-                dot={(props: { cx?: number; cy?: number; index?: number }) => {
-                  const isLast = props.index === historyData.length - 1;
-                  return (
-                    <circle
-                      key={props.index}
-                      cx={props.cx}
-                      cy={props.cy}
-                      r={isLast ? 4 : 0}
-                      fill="var(--accent)"
-                      stroke="none"
-                    />
-                  );
-                }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      <div className="flex justify-between">
-        {ticks.map((t, i) => (
-          <span
-            key={i}
-            className="smallcap whitespace-nowrap font-semibold !text-[10px] text-faint"
-          >
-            {t.Date}
+      {/* Big rate + change */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="tnum text-[42px] font-bold leading-none tracking-[-1.4px] text-text">
+          {fmtRate(cur)}{" "}
+          <span className="text-[16px] font-semibold text-mid">
+            {toCurrency}
           </span>
-        ))}
+        </span>
+        <Chg value={pct} size={14} />
       </div>
 
-      <Rule variant="hair" className="mt-2" />
+      {/* Chart card */}
+      <div className="signal-card px-[16px] pb-[12px] pt-[16px]">
+        <div className="h-[190px] w-full lg:h-[300px]">
+          {!isLoading && hasData && (
+            <ResponsiveContainer>
+              <AreaChart
+                data={historyData}
+                margin={{ left: 2, right: 2, top: 12, bottom: 4 }}
+              >
+                <defs>
+                  <linearGradient id="signalFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="0%"
+                      stopColor="var(--accent)"
+                      stopOpacity={0.26}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="var(--accent)"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="Date" hide />
+                <YAxis type="number" domain={["auto", "auto"]} hide />
+                <Tooltip
+                  cursor={false}
+                  contentStyle={{
+                    backgroundColor: "var(--card-hi)",
+                    border: "1px solid var(--border-hi)",
+                    borderRadius: 10,
+                    boxShadow: "0 12px 28px rgba(0,0,0,0.6)",
+                  }}
+                  labelStyle={{ color: "var(--dim)" }}
+                  itemStyle={{ color: "var(--text)" }}
+                  formatter={(value: number) => [fmtRate(value), toCurrency]}
+                />
+                <Area
+                  type="linear"
+                  dataKey="Rate"
+                  stroke="var(--accent)"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="url(#signalFill)"
+                  fillOpacity={1}
+                  isAnimationActive={false}
+                  style={{ filter: "drop-shadow(0 0 6px rgba(244,178,62,0.5))" }}
+                  dot={(props: { cx?: number; cy?: number; index?: number }) => {
+                    const isLast = props.index === historyData.length - 1;
+                    return (
+                      <circle
+                        key={props.index}
+                        cx={props.cx}
+                        cy={props.cy}
+                        r={isLast ? 3.4 : 0}
+                        fill="var(--accent)"
+                        stroke="none"
+                      />
+                    );
+                  }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
-      <div className="my-4 flex flex-wrap justify-center gap-x-1 gap-y-[6px]">
-        {RANGES.map((r, i) => (
-          <span key={r} className="flex items-center">
+        {/* Range buttons */}
+        <div className="mt-3 flex gap-[7px]">
+          {RANGES.map((r) => (
             <button
+              key={r}
               type="button"
-              className="bs-range"
+              className="signal-range"
               data-on={r === selectedRange ? 1 : 0}
               onClick={() => selectRange(r)}
             >
               {r}
             </button>
-            {i < RANGES.length - 1 && (
-              <span className="self-center text-hair">·</span>
-            )}
-          </span>
-        ))}
+          ))}
+        </div>
       </div>
 
-      <Rule variant="hair" className="mb-[14px]" />
-
-      <div className="flex justify-between gap-3">
-        {([
-          ["High", hi],
-          ["Low", lo],
-          ["Average", avg],
-        ] as [string, number][]).map(([label, value]) => (
-          <div key={label} className="flex-1 text-center">
-            <div className="smallcap mb-[5px]">{label}</div>
-            <div className="serif [font-size:clamp(20px,6vw,26px)]">
+      {/* Stat cards */}
+      <div className="flex gap-3">
+        {(
+          [
+            ["Range high", hi],
+            ["Range low", lo],
+            ["Open", first],
+          ] as [string, number][]
+        ).map(([label, value]) => (
+          <div key={label} className="signal-card flex-1 px-[14px] py-[12px]">
+            <div className="micro">{label}</div>
+            <div className="mono mt-[5px] text-[15px] text-text">
               {fmtRate(value)}
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Footer */}
+      <div className="mono text-center text-[11.5px] text-dim">
+        {startDate} → {endDate} · mid-market
       </div>
     </div>
   );

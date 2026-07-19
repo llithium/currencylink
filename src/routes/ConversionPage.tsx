@@ -1,11 +1,8 @@
-import getSymbolFromCurrency from "currency-symbol-map";
 import axios from "axios";
 import { useLoaderData, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import pluralizeCurrencyName from "../utils/pluralizeCurrencyName";
 import CurrencyPicker from "../components/CurrencyPicker";
-import { Chg, Rule } from "../components/Broadsheet";
-import { fmtMoney, fmtRate, numberToWords } from "../utils/format";
+import { fmtCurrency, fmtRate } from "../utils/format";
 
 /** ISO date (YYYY-MM-DD) for `days` days ago — used for short history fetches. */
 export function isoDaysAgo(days: number): string {
@@ -59,7 +56,6 @@ export default function ConversionPage() {
   const [exchangeRate, setExchangeRate] = useState(
     Object.values(data.rates)[28],
   );
-  const [change, setChange] = useState(0);
 
   useEffect(() => {
     const localSelectedFromCurrency = localStorage.getItem(
@@ -103,24 +99,6 @@ export default function ConversionPage() {
           const data: ResponseData = response.data;
 
           setExchangeRate(Object.values(data.rates)[0]);
-
-          // Derive the 24h change from the two most recent business days.
-          const history = await axios.get(
-            apiURL +
-              `/${isoDaysAgo(7)}..?from=${fromCurrency}&to=${toCurrency}`,
-          );
-          const series = Object.entries(
-            history.data.rates as { [date: string]: { [code: string]: number } },
-          )
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([, r]) => r[toCurrency]);
-          if (series.length >= 2) {
-            const prev = series[series.length - 2];
-            const last = series[series.length - 1];
-            setChange(((last - prev) / prev) * 100);
-          } else {
-            setChange(0);
-          }
         } catch (error) {
           console.log(error);
         }
@@ -254,122 +232,127 @@ export default function ConversionPage() {
   }
 
   const result = (amount || 0) * exchangeRate;
-  const totalCents = Math.round(result * 100);
-  const intPart = Math.floor(totalCents / 100);
-  const cents = totalCents % 100;
   const inv = exchangeRate ? 1 / exchangeRate : 0;
-  const toName = currencyNames[currencyOptions.indexOf(toCurrency)] ?? toCurrency;
+
+  function setAmountValue(value: string) {
+    const parsed = parseFloat(value);
+    setAmount(isNaN(parsed) ? 0 : parsed);
+    setSearchParams((searchParams) => {
+      searchParams.set("amount", value);
+      return searchParams;
+    });
+    localStorage.setItem("amount", value);
+  }
+
+  const QUICK = [100, 500, 1000, 5000, 10000];
 
   return (
-    <div className="bs-view pt-[26px]">
-      <div className="smallcap mb-[10px]">You convert</div>
-      <div className="flex items-baseline gap-[10px]">
-        <span
-          className="serif leading-none text-muted [font-size:clamp(34px,10vw,46px)]"
-        >
-          {getSymbolFromCurrency(fromCurrency)}
-        </span>
-        <input
-          className="bs-amount-input min-w-0 flex-1 [font-size:clamp(40px,13vw,58px)]"
-          inputMode="decimal"
-          placeholder="0"
-          aria-label="Amount to convert"
-          value={
-            amount
-              ? amount.toLocaleString("fullwide", { useGrouping: false })
-              : ""
-          }
-          onChange={(e) => {
-            const value = e.target.value.replace(/[^\d.]/g, "");
-            const parsed = parseFloat(value);
-            setAmount(isNaN(parsed) ? 0 : parsed);
-            setSearchParams((searchParams) => {
-              searchParams.set("amount", value);
-              return searchParams;
-            });
-            localStorage.setItem("amount", value);
-          }}
-        />
-      </div>
-
-      <div className="mt-[10px] max-w-[360px]">
-        <CurrencyPicker
-          aria-label="Convert from currency"
-          variant="hero"
-          currencyOptions={currencyOptions}
-          currencyNames={currencyNames}
-          value={fromCurrency}
-          excludeCode={toCurrency}
-          onSelectionChange={handleChangeFromCurrency}
-        />
-      </div>
-
-      <div className="my-[26px] flex items-center gap-4">
-        <div className="h-px flex-1 bg-hair" />
-        <button
-          type="button"
-          className="bs-iconbtn h-10 w-10"
-          title="Swap currencies"
-          aria-label="Swap currencies"
-          onClick={swapCurrencies}
-        >
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l3 3M17 4l-3 3" />
-          </svg>
-        </button>
-        <div className="h-px flex-1 bg-hair" />
-      </div>
-
-      <div className="smallcap mb-[10px]">You receive</div>
-      <div className="flex items-baseline gap-2">
-        <span className="serif leading-none text-accent [font-size:clamp(38px,11vw,52px)]">
-          {getSymbolFromCurrency(toCurrency)}
-        </span>
-        <span className="serif text-ink [font-size:clamp(50px,17vw,76px)] [letter-spacing:-0.5px] [line-height:0.92]">
-          {fmtMoney(result)}
-        </span>
-      </div>
-
-      <div className="mt-[10px] max-w-[360px]">
-        <CurrencyPicker
-          aria-label="Convert to currency"
-          variant="hero"
-          currencyOptions={currencyOptions}
-          currencyNames={currencyNames}
-          value={toCurrency}
-          excludeCode={fromCurrency}
-          onSelectionChange={handleChangeToCurrency}
-        />
-      </div>
-
-      <div className="serif mt-[18px] italic leading-[1.3] text-muted [font-size:clamp(16px,4.5vw,19px)]">
-        {numberToWords(intPart)}{" "}
-        {pluralizeCurrencyName(toName, intPart).toLowerCase()} and{" "}
-        {cents.toString().padStart(2, "0")}/100.
-      </div>
-
-      <div className="mt-[28px]">
-        <Rule variant="hair" />
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-[10px] pt-[14px]">
-        <span className="serif text-ink [font-size:clamp(18px,5vw,22px)]">
-          1 {fromCurrency} = {fmtRate(exchangeRate)} {toCurrency}
-        </span>
-        <div className="flex items-center gap-4">
-          <span className="smallcap font-semibold text-faint">
-            1 {toCurrency} = {fmtRate(inv)} {fromCurrency}
-          </span>
-          <Chg value={change} size={13} />
+    <div className="signal-view">
+      <div className="relative flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-[72px]">
+        {/* Amount card */}
+        <div className="signal-card px-[19px] py-[17px]">
+          <div className="mb-[9px] flex items-center justify-between gap-3">
+            <span className="micro">Amount</span>
+            <CurrencyPicker
+              aria-label="Convert from currency"
+              currencyOptions={currencyOptions}
+              currencyNames={currencyNames}
+              value={fromCurrency}
+              excludeCode={toCurrency}
+              onSelectionChange={handleChangeFromCurrency}
+            />
+          </div>
+          <input
+            className="signal-input tnum w-full text-[44px] font-bold leading-none tracking-[-1.2px]"
+            inputMode="decimal"
+            placeholder="0"
+            aria-label="Amount to convert"
+            value={
+              amount
+                ? amount.toLocaleString("fullwide", { useGrouping: false })
+                : ""
+            }
+            onChange={(e) =>
+              setAmountValue(e.target.value.replace(/[^\d.]/g, ""))
+            }
+          />
         </div>
+
+        {/* Swap — floats between the cards: below/above on mobile, left/right on desktop */}
+        <div className="-my-[21px] flex justify-center lg:absolute lg:left-1/2 lg:top-1/2 lg:my-0 lg:-translate-x-1/2 lg:-translate-y-1/2">
+          <button
+            type="button"
+            className="signal-swap"
+            title="Swap currencies"
+            aria-label="Swap currencies"
+            onClick={swapCurrencies}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 14 14"
+              fill="none"
+              className="lg:rotate-90"
+            >
+              <path
+                d="M4.5 1v9M4.5 10L2 7.5M4.5 10L7 7.5M9.5 13V4M9.5 4L7 6.5M9.5 4L12 6.5"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Converted card */}
+        <div
+          className="signal-card px-[19px] py-[17px]"
+          style={{
+            borderColor: "var(--border-hi)",
+            background:
+              "linear-gradient(180deg, rgba(244,178,62,0.06), rgba(244,178,62,0) 60%), var(--card)",
+          }}
+        >
+          <div className="mb-[9px] flex items-center justify-between gap-3">
+            <span className="micro">Converted</span>
+            <CurrencyPicker
+              aria-label="Convert to currency"
+              currencyOptions={currencyOptions}
+              currencyNames={currencyNames}
+              value={toCurrency}
+              excludeCode={fromCurrency}
+              onSelectionChange={handleChangeToCurrency}
+            />
+          </div>
+          <div
+            className="tnum text-[48px] font-bold leading-[1.05] text-accent [overflow-wrap:anywhere]"
+            style={{
+              letterSpacing: "-1.6px",
+              textShadow: "0 0 26px rgba(244,178,62,0.35)",
+            }}
+          >
+            {fmtCurrency(result, toCurrency)}
+          </div>
+          <div className="mono mt-[10px] text-[12px] text-mid">
+            1 {fromCurrency} = {fmtRate(exchangeRate)} {toCurrency} · 1{" "}
+            {toCurrency} = {fmtRate(inv)} {fromCurrency}
+          </div>
+        </div>
+      </div>
+
+      {/* Quick amounts */}
+      <div className="flex gap-2">
+        {QUICK.map((a) => (
+          <button
+            key={a}
+            type="button"
+            className="signal-chip"
+            onClick={() => setAmountValue(String(a))}
+          >
+            {a >= 1000 ? `${a / 1000}K` : a}
+          </button>
+        ))}
       </div>
     </div>
   );

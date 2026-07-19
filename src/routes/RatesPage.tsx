@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { LoaderData, apiURL, isoDaysAgo } from "./ConversionPage";
 import axios from "axios";
-import { useLoaderData, useSearchParams } from "react-router-dom";
+import { useLoaderData, useNavigate, useSearchParams } from "react-router-dom";
 import { currencyFlags } from "../utils/currencyFlags";
 import CurrencyPicker from "../components/CurrencyPicker";
-import { Chg, Rule, Sparkline } from "../components/Broadsheet";
+import { Chg, Sparkline } from "../components/Signal";
 import { fmtRate } from "../utils/format";
 
 interface RateRow {
@@ -15,12 +15,12 @@ interface RateRow {
   series: number[];
 }
 
-const GRID = "grid grid-cols-[1fr_64px_auto_70px] items-center gap-x-4";
-
 export default function RatesPage() {
   const { currencyOptions, currencyNames } = useLoaderData() as LoaderData;
+  const navigate = useNavigate();
   const [base, setBase] = useState("USD");
   const [rows, setRows] = useState<RateRow[]>([]);
+  const [query, setQuery] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -84,16 +84,36 @@ export default function RatesPage() {
     });
   }
 
+  // Open History pre-set to base → clicked currency.
+  function openPair(code: string) {
+    const from = currencyOptions.indexOf(base);
+    const to = currencyOptions.indexOf(code);
+    if (from < 0 || to < 0) return;
+    localStorage.setItem("fromCurrency", base);
+    localStorage.setItem("toCurrency", code);
+    localStorage.setItem("selectedFromCurrency", String(from));
+    localStorage.setItem("selectedToCurrency", String(to));
+    navigate(`/history?from=${from}&to=${to}`);
+  }
+
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? rows.filter((r) => `${r.code} ${r.name}`.toLowerCase().includes(q))
+    : rows;
+
   return (
-    <div className="bs-view pt-[24px]">
-      <div className="mb-[14px] flex items-end justify-between gap-[14px]">
-        <h2 className="serif m-0 whitespace-nowrap font-normal leading-none [font-size:clamp(28px,7vw,38px)]">
-          Exchange Table
-        </h2>
-        <div className="w-[130px] flex-none">
+    <div className="signal-view">
+      <div className="flex items-center gap-[10px]">
+        <input
+          className="signal-search flex-1"
+          placeholder="Search currency…"
+          aria-label="Search currency"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="w-[132px] flex-none">
           <CurrencyPicker
             aria-label="Base currency"
-            variant="code"
             currencyOptions={currencyOptions}
             currencyNames={currencyNames}
             value={base}
@@ -102,42 +122,46 @@ export default function RatesPage() {
         </div>
       </div>
 
-      <div className={`${GRID} pb-[7px]`}>
-        <span className="smallcap">Currency · per 1 {base}</span>
-        <span className="smallcap text-right">30d</span>
-        <span className="smallcap text-right">Rate</span>
-        <span className="smallcap text-right">24h</span>
-      </div>
-      <Rule />
-
-      {rows.map((row) => (
-        <div key={row.code}>
-          <div className={`${GRID} py-[11px]`}>
-            <span className="flex min-w-0 items-center gap-3">
-              <span
-                className={`fi ${currencyFlags[row.code] ?? ""} flex-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.14)]`}
-                style={{ width: 23, height: 17 }}
-              />
-              <span className="serif overflow-hidden text-ellipsis whitespace-nowrap [font-size:clamp(17px,5vw,21px)]">
-                {row.name}
-              </span>
-            </span>
-            <span className="flex justify-end">
-              <Sparkline data={row.series} />
-            </span>
-            <span className="serif whitespace-nowrap text-right [font-size:clamp(19px,5.5vw,23px)]">
-              {fmtRate(row.rate)}
-            </span>
-            <span className="text-right">
-              <Chg value={row.change} size={11.5} />
-            </span>
-          </div>
-          <Rule variant="hair" />
+      <div className="signal-card overflow-hidden">
+        <div className="flex items-center border-b border-border px-[18px] py-[10px]">
+          <span className="micro">1 {base} buys</span>
+          <span className="micro ml-auto">30 days · 24h</span>
         </div>
-      ))}
 
-      <div className="smallcap mt-4 text-center font-semibold !tracking-[1px] text-faint">
-        Rates supplied by the European Central Bank
+        {visible.map((row) => (
+          <button
+            key={row.code}
+            type="button"
+            className="signal-row"
+            onClick={() => openPair(row.code)}
+          >
+            <span
+              className={`fi ${currencyFlags[row.code] ?? ""} flex-none shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]`}
+              style={{ width: 28, height: 20, borderRadius: 4 }}
+            />
+            <div className="min-w-0">
+              <div className="text-[14px] font-bold text-text">{row.code}</div>
+              <div className="max-w-[170px] overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-dim lg:max-w-none">
+                {row.name}
+              </div>
+            </div>
+            <span className="ml-auto">
+              <Sparkline data={row.series} width={60} height={22} />
+            </span>
+            <div className="w-[96px] text-right">
+              <div className="mono text-[13px] text-text">
+                {fmtRate(row.rate)}
+              </div>
+              <Chg value={row.change} size={11} />
+            </div>
+          </button>
+        ))}
+
+        {!visible.length && (
+          <div className="px-[18px] py-[22px] text-[13.5px] text-dim">
+            {q ? `No currency matches “${query}”.` : "Loading rates…"}
+          </div>
+        )}
       </div>
     </div>
   );
