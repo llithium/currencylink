@@ -1,477 +1,147 @@
-import { LoaderData, apiURL } from "./ConversionPage";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import { useEffect, useState } from "react";
-import axios, { AxiosResponse } from "axios";
-import { useLoaderData, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { getHistory, percentageChange, type RatePoint } from "../api/frankfurter";
 import CurrencyPicker from "../components/CurrencyPicker";
-import { Chg } from "../components/Signal";
+import RateChart from "../components/RateChart";
+import { Chg, InlineError } from "../components/Signal";
+import { useCurrencyPair } from "../hooks/useCurrencyPair";
 import { fmtRate } from "../utils/format";
-
-interface HistoryResponse {
-  amount: number;
-  base: string;
-  start_date: Date;
-  end_date: Date;
-  rates: { [key: string]: Rate };
-}
-
-interface Rate {
-  [key: string]: number;
-}
-
-interface DataObject {
-  Date: string;
-  Rate: number;
-}
-
-const RANGES = ["1W", "1M", "1Y", "5Y", "10Y", "All"];
-
-function setDateForRange(
-  range: string,
-  dates: ReturnType<typeof getEarlierDates>,
-): string {
-  switch (range) {
-    case "1W":
-      return dates.oneWeek;
-    case "1M":
-      return dates.oneMonth;
-    case "1Y":
-      return dates.oneYear;
-    case "5Y":
-      return dates.fiveYears;
-    case "10Y":
-      return dates.tenYears;
-    case "All":
-      return "1999-01-04";
-    default:
-      return dates.oneMonth;
-  }
-}
-
-function getEarlierDates() {
-  const now: Date = new Date();
-
-  // 1 week earlier
-  const oneWeekEarlier: Date = new Date(now);
-  oneWeekEarlier.setDate(oneWeekEarlier.getDate() - 7);
-
-  // 1 month earlier
-  const oneMonthEarlier: Date = new Date(now);
-  oneMonthEarlier.setMonth(oneMonthEarlier.getMonth() - 1);
-
-  // 1 year earlier
-  const oneYearEarlier: Date = new Date(now);
-  oneYearEarlier.setFullYear(oneYearEarlier.getFullYear() - 1);
-
-  // 5 years earlier
-  const fiveYearsEarlier: Date = new Date(now);
-  fiveYearsEarlier.setFullYear(fiveYearsEarlier.getFullYear() - 5);
-
-  // 10 years earlier
-  const tenYearsEarlier: Date = new Date(now);
-  tenYearsEarlier.setFullYear(tenYearsEarlier.getFullYear() - 10);
-
-  const oneWeek = oneWeekEarlier
-    .toLocaleString("lt", {
-      dateStyle: "short",
-    })
-    .replace(/\//g, "-");
-  const oneMonth = oneMonthEarlier
-    .toLocaleString("lt", {
-      dateStyle: "short",
-    })
-    .replace(/\//g, "-");
-  const oneYear = oneYearEarlier
-    .toLocaleString("lt", {
-      dateStyle: "short",
-    })
-    .replace(/\//g, "-");
-  const fiveYears = fiveYearsEarlier
-    .toLocaleString("lt", {
-      dateStyle: "short",
-    })
-    .replace(/\//g, "-");
-  const tenYears = tenYearsEarlier
-    .toLocaleString("lt", {
-      dateStyle: "short",
-    })
-    .replace(/\//g, "-");
-  return { oneWeek, oneMonth, oneYear, fiveYears, tenYears };
-}
+import {
+  HISTORY_RANGES,
+  getHistoryRequestRange,
+  isHistoryRange,
+  type HistoryRange,
+} from "../utils/historyRange";
+import { useCurrencies } from "./Root";
 
 export default function HistoryPage() {
-  const { currencyOptions, currencyNames } = useLoaderData() as LoaderData;
-  const [fromCurrency, setFromCurrency] = useState("EUR");
-  const [toCurrency, setToCurrency] = useState("USD");
-  const [historyData, setHistoryData] = useState<DataObject[]>([]);
-  const [date, setDate] = useState("");
-  const [selectedRange, setSelectedRange] = useState("");
-  const [, setSelectedFrom] = useState("8");
-  const [, setSelectedTo] = useState("29");
+  const currencies = useCurrencies();
+  const pair = useCurrencyPair(currencies);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [isLoading, setIsLoading] = useState(true);
+  const requestedRange = searchParams.get("range");
+  const range: HistoryRange = isHistoryRange(requestedRange) ? requestedRange : "1M";
+  const [data, setData] = useState<RatePoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+
+  const fromCurrency = currencies.find((currency) => currency.code === pair.from)!;
+  const toCurrency = currencies.find((currency) => currency.code === pair.to)!;
+  const requestRange = useMemo(
+    () => getHistoryRequestRange(range, fromCurrency, toCurrency),
+    [fromCurrency, range, toCurrency],
+  );
 
   useEffect(() => {
-    if (isLoading) {
-      let { oneMonth } = getEarlierDates();
-      setDate(oneMonth);
-
-      const localSelectedFromCurrency = localStorage.getItem(
-        "selectedFromCurrency",
-      );
-      const localSelectedToCurrency =
-        localStorage.getItem("selectedToCurrency");
-      const localFromCurrency = localStorage.getItem("fromCurrency");
-      const localToCurrency = localStorage.getItem("toCurrency");
-
-      localSelectedFromCurrency && setSelectedFrom(localSelectedFromCurrency);
-      localSelectedToCurrency && setSelectedTo(localSelectedToCurrency);
-      localFromCurrency && setFromCurrency(localFromCurrency);
-      localToCurrency && setToCurrency(localToCurrency);
-
-      if (searchParams.has("from")) {
-        setSelectedFrom(searchParams.get("from") as string);
-        const from = parseInt(searchParams.get("from") as string);
-        setFromCurrency(currencyOptions[from]);
-      }
-      if (searchParams.has("to")) {
-        setSelectedTo(searchParams.get("to") as string);
-        const to = parseInt(searchParams.get("to") as string);
-        setToCurrency(currencyOptions[to]);
-      }
-      if (searchParams.has("range")) {
-        setSelectedRange(searchParams.get("range") as string);
-        const { oneWeek, oneMonth, oneYear, fiveYears, tenYears } =
-          getEarlierDates();
-        switch (searchParams.get("range") as string) {
-          case "1W":
-            setDate(oneWeek);
-            break;
-          case "1M":
-            setDate(oneMonth);
-            break;
-          case "1Y":
-            setDate(oneYear);
-            break;
-          case "5Y":
-            setDate(fiveYears);
-            break;
-          case "10Y":
-            setDate(tenYears);
-            break;
-          case "All":
-            setDate("1999-01-04");
-            break;
-          default:
-            break;
+    const controller = new AbortController();
+    setLoading(true);
+    setError("");
+    getHistory(
+      {
+        base: pair.from,
+        quote: pair.to,
+        from: requestRange.from,
+        to: requestRange.to,
+        group: requestRange.group,
+      },
+      controller.signal,
+    )
+      .then(setData)
+      .catch((requestError: unknown) => {
+        if (!(requestError instanceof DOMException && requestError.name === "AbortError")) {
+          setError(requestError instanceof Error ? requestError.message : "Please try again.");
         }
-      }
-    }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [pair.from, pair.to, requestRange, retryKey]);
 
-    async function getHistory() {
-      try {
-        const response = await axios.get(
-          apiURL + `/${date}..?from=${fromCurrency}&to=${toCurrency}`,
-        );
-        const newData: DataObject[] = convertData(response);
-        setHistoryData(newData);
-        setIsLoading(false);
-        selectedRange === "" && setSelectedRange("1M");
-      } catch (error) {}
-    }
-    getHistory();
-  }, [fromCurrency, toCurrency, date]);
-
-  function convertData(response: AxiosResponse): DataObject[] {
-    const newData: DataObject[] = [];
-    const responseData: HistoryResponse = response.data;
-    const rates = responseData.rates;
-
-    for (const [key] of Object.entries(rates)) {
-      const dataPoint = [];
-      const datePair = [];
-      const ratePair = [];
-      datePair.push("Date");
-      datePair.push(key);
-      ratePair.push("Rate");
-      ratePair.push(rates[key][toCurrency]);
-      dataPoint.push(datePair, ratePair);
-      const dataObject: DataObject = Object.fromEntries(dataPoint);
-      newData.push(dataObject);
-    }
-    return newData;
-  }
-
-  function handleChangeFromCurrency<Selection>(key: Selection): any {
-    const newKey = key as string;
-    const value = currencyOptions[parseFloat(newKey)];
-
-    if (value) {
-      if (value !== toCurrency) {
-        setFromCurrency(value);
-        localStorage.setItem("fromCurrency", value);
-        setSearchParams((searchParams) => {
-          searchParams.set("from", newKey);
-          return searchParams;
-        });
-        setSelectedFrom(newKey);
-        localStorage.setItem("selectedFromCurrency", newKey);
-      } else {
-        setToCurrency(fromCurrency);
-        setSearchParams((searchParams) => {
-          searchParams.set(
-            "to",
-            currencyOptions.indexOf(fromCurrency).toString(),
-          );
-          return searchParams;
-        });
-        localStorage.setItem("toCurrency", fromCurrency);
-        setSelectedTo(currencyOptions.indexOf(fromCurrency).toString());
-        localStorage.setItem(
-          "selectedToCurrency",
-          currencyOptions.indexOf(fromCurrency).toString(),
-        );
-
-        setFromCurrency(toCurrency);
-        setSearchParams((searchParams) => {
-          searchParams.set(
-            "from",
-            currencyOptions.indexOf(toCurrency).toString(),
-          );
-          return searchParams;
-        });
-        localStorage.setItem("fromCurrency", toCurrency);
-        setSelectedFrom(currencyOptions.indexOf(toCurrency).toString());
-        localStorage.setItem(
-          "selectedFromCurrency",
-          currencyOptions.indexOf(toCurrency).toString(),
-        );
-      }
-    } else {
-    }
-  }
-
-  function handleChangeToCurrency<Selection>(key: Selection): any {
-    const newKey = key as string;
-    const value = currencyOptions[parseInt(newKey)];
-    console.log();
-
-    if (value) {
-      if (value !== fromCurrency) {
-        setToCurrency(value);
-        setSearchParams((searchParams) => {
-          searchParams.set("to", newKey);
-          return searchParams;
-        });
-        localStorage.setItem("toCurrency", value);
-        setSelectedTo(newKey);
-        localStorage.setItem("selectedToCurrency", newKey);
-      } else {
-        setToCurrency(fromCurrency);
-
-        setSelectedTo(currencyOptions.indexOf(fromCurrency).toString());
-        setSearchParams((searchParams) => {
-          searchParams.set(
-            "to",
-            currencyOptions.indexOf(fromCurrency).toString(),
-          );
-          return searchParams;
-        });
-        localStorage.setItem(
-          "selectedToCurrency",
-          currencyOptions.indexOf(fromCurrency).toString(),
-        );
-        setFromCurrency(toCurrency);
-        setSearchParams((searchParams) => {
-          searchParams.set(
-            "from",
-            currencyOptions.indexOf(toCurrency).toString(),
-          );
-          return searchParams;
-        });
-        localStorage.setItem("fromCurrency", toCurrency);
-        setSelectedFrom(currencyOptions.indexOf(toCurrency).toString());
-        localStorage.setItem(
-          "selectedFromCurrency",
-          currencyOptions.indexOf(toCurrency).toString(),
-        );
-      }
-    } else {
-    }
-  }
-
-  function selectRange(r: string) {
-    setDate(setDateForRange(r, getEarlierDates()));
-    setSelectedRange(r);
-    setSearchParams((searchParams) => {
-      searchParams.set("range", r);
-      return searchParams;
+  function setRange(next: HistoryRange) {
+    setSearchParams((current) => {
+      current.set("from", pair.from);
+      current.set("to", pair.to);
+      current.set("range", next);
+      return current;
     });
   }
 
-  const rates = historyData.map((d) => d.Rate);
-  const hasData = rates.length > 0;
-  const cur = hasData ? rates[rates.length - 1] : 0;
-  const first = hasData ? rates[0] : 0;
-  const pct = first ? ((cur - first) / first) * 100 : 0;
-  const hi = hasData ? Math.max(...rates) : 0;
-  const lo = hasData ? Math.min(...rates) : 0;
-  const startDate = hasData ? historyData[0].Date : "";
-  const endDate = hasData ? historyData[historyData.length - 1].Date : "";
+  const values = data.map((point) => point.rate);
+  const open = values[0] ?? 0;
+  const current = values[values.length - 1] ?? 0;
+  const change = percentageChange(current, open);
+  const high = values.length ? Math.max(...values) : 0;
+  const low = values.length ? Math.min(...values) : 0;
 
   return (
-    <div className="signal-view">
-      {/* Pair pickers */}
-      <div className="flex items-center gap-[10px]">
-        <div className="min-w-0 flex-1 lg:max-w-[220px]">
-          <CurrencyPicker
-            aria-label="History from currency"
-            currencyOptions={currencyOptions}
-            currencyNames={currencyNames}
-            value={fromCurrency}
-            excludeCode={toCurrency}
-            onSelectionChange={handleChangeFromCurrency}
-          />
+    <section className="page page-history" aria-labelledby="history-title">
+      <div className="page-heading history-heading">
+        <div>
+          <p className="eyebrow">Pair history</p>
+          <h1 id="history-title">Exchange-rate history</h1>
         </div>
-        <span className="mono flex-none text-accent">⇄</span>
-        <div className="min-w-0 flex-1 lg:max-w-[220px]">
-          <CurrencyPicker
-            aria-label="History to currency"
-            currencyOptions={currencyOptions}
-            currencyNames={currencyNames}
-            value={toCurrency}
-            excludeCode={fromCurrency}
-            onSelectionChange={handleChangeToCurrency}
-          />
-        </div>
-        <span className="micro ml-auto flex-none whitespace-nowrap">
-          past {selectedRange}
-        </span>
+        <p>Explore daily reference data with interactive zoom, pan, and precise crosshair values.</p>
       </div>
 
-      {/* Big rate + change */}
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="tnum text-[42px] font-bold leading-none tracking-[-1.4px] text-text">
-          {fmtRate(cur)}{" "}
-          <span className="text-[16px] font-semibold text-mid">
-            {toCurrency}
-          </span>
-        </span>
-        <Chg value={pct} size={14} />
+      <div className="history-toolbar">
+        <CurrencyPicker currencies={currencies} value={pair.from} excludeCode={pair.to} onChange={pair.setFrom} aria-label="History from currency" />
+        <button type="button" className="inline-swap" onClick={pair.swap} aria-label="Swap history currencies">⇄</button>
+        <CurrencyPicker currencies={currencies} value={pair.to} excludeCode={pair.from} onChange={pair.setTo} aria-label="History to currency" />
+        <span className="history-range-label">Past {range === "MAX" ? "maximum" : range}</span>
       </div>
 
-      {/* Chart card */}
-      <div className="signal-card px-[16px] pb-[12px] pt-[16px]">
-        <div className="h-[190px] w-full lg:h-[300px]">
-          {!isLoading && hasData && (
-            <ResponsiveContainer>
-              <AreaChart
-                data={historyData}
-                margin={{ left: 2, right: 2, top: 12, bottom: 4 }}
-              >
-                <defs>
-                  <linearGradient id="signalFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="0%"
-                      stopColor="var(--accent)"
-                      stopOpacity={0.26}
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor="var(--accent)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="Date" hide />
-                <YAxis type="number" domain={["auto", "auto"]} hide />
-                <Tooltip
-                  cursor={false}
-                  contentStyle={{
-                    backgroundColor: "var(--card-hi)",
-                    border: "1px solid var(--border-hi)",
-                    borderRadius: 10,
-                    boxShadow: "0 12px 28px rgba(0,0,0,0.6)",
-                  }}
-                  labelStyle={{ color: "var(--dim)" }}
-                  itemStyle={{ color: "var(--text)" }}
-                  formatter={(value: number) => [fmtRate(value), toCurrency]}
-                />
-                <Area
-                  type="linear"
-                  dataKey="Rate"
-                  stroke="var(--accent)"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="url(#signalFill)"
-                  fillOpacity={1}
-                  isAnimationActive={false}
-                  style={{ filter: "drop-shadow(0 0 6px rgba(244,178,62,0.5))" }}
-                  dot={(props: { cx?: number; cy?: number; index?: number }) => {
-                    const isLast = props.index === historyData.length - 1;
-                    return (
-                      <circle
-                        key={props.index}
-                        cx={props.cx}
-                        cy={props.cy}
-                        r={isLast ? 3.4 : 0}
-                        fill="var(--accent)"
-                        stroke="none"
-                      />
-                    );
-                  }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
+      <div className="history-summary" aria-live="polite">
+        <div>
+          <span className="eyebrow">Latest reference rate</span>
+          <strong>{current ? fmtRate(current) : "—"} <small>{pair.to}</small></strong>
         </div>
+        {!loading && data.length > 0 && <Chg value={change} size={14} label={`${range} change`} />}
+        <span>{data.length ? `${data[0].date} → ${data[data.length - 1].date}` : "Loading date range…"}</span>
+      </div>
 
-        {/* Range buttons */}
-        <div className="mt-3 flex gap-[7px]">
-          {RANGES.map((r) => (
+      <div className="panel history-chart-panel">
+        {loading && <div className="chart-skeleton" aria-label="Loading history chart" role="status" />}
+        {error && <InlineError message={error} retry={() => setRetryKey((key) => key + 1)} />}
+        {!loading && !error && data.length > 0 && <RateChart data={data} quote={pair.to} />}
+        {!loading && !error && data.length === 0 && <div className="empty-state">No history is available for this pair and range.</div>}
+
+        <div className="range-controls" aria-label="History range">
+          {HISTORY_RANGES.map((item) => (
             <button
-              key={r}
+              key={item}
               type="button"
-              className="signal-range"
-              data-on={r === selectedRange ? 1 : 0}
-              onClick={() => selectRange(r)}
+              className={item === range ? "range-active" : ""}
+              aria-pressed={item === range}
+              onClick={() => setRange(item)}
             >
-              {r}
+              {item}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="flex gap-3">
-        {(
-          [
-            ["Range high", hi],
-            ["Range low", lo],
-            ["Open", first],
-          ] as [string, number][]
-        ).map(([label, value]) => (
-          <div key={label} className="signal-card flex-1 px-[14px] py-[12px]">
-            <div className="micro">{label}</div>
-            <div className="mono mt-[5px] text-[15px] text-text">
-              {fmtRate(value)}
-            </div>
+      <div className="history-stats">
+        {[
+          ["Current", current],
+          ["Open", open],
+          ["High", high],
+          ["Low", low],
+        ].map(([label, value]) => (
+          <div className="panel stat-card" key={label as string}>
+            <span className="eyebrow">{label}</span>
+            <strong>{fmtRate(value as number)}</strong>
           </div>
         ))}
+        <div className="panel stat-card">
+          <span className="eyebrow">Range change</span>
+          <Chg value={change} size={13} />
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="mono text-center text-[11.5px] text-dim">
-        {startDate} → {endDate} · mid-market
-      </div>
-    </div>
+      <p className="chart-attribution">
+        Interactive charts by <a href="https://www.tradingview.com/">TradingView</a> · Lightweight Charts™
+      </p>
+    </section>
   );
 }

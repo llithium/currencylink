@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no, user-scalable=0"
+      content="width=device-width, initial-scale=1.0"
     />
     <meta
       name="description"
@@ -15,7 +15,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#0C0A09" />
+    <meta name="theme-color" content="#0c0a09" />
+    <script>
+      (() => {
+        const saved = localStorage.getItem("currencylink-theme");
+        const theme = saved === "light" || saved === "dark"
+          ? saved
+          : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === "dark" ? "#0c0a09" : "#f7f4ef";
+      })();
+    </script>
 
     <!-- Open Graph / social previews -->
     <meta property="og:type" content="website" />

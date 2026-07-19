@@ -1,10 +1,12 @@
+import { Link } from "react-router-dom";
+
 export default function NoMatch() {
   return (
-    <div className="signal-view mx-auto mt-40 w-fit items-center text-center">
-      <p className="tnum text-[80px] font-bold leading-none tracking-[-2px] text-accent">
-        404
-      </p>
-      <p className="micro">Page not found</p>
-    </div>
+    <section className="not-found" aria-labelledby="not-found-title">
+      <p className="not-found-code">404</p>
+      <h1 id="not-found-title">That rate took a wrong turn.</h1>
+      <p>The page you requested doesn’t exist.</p>
+      <Link className="primary-button" to="/">Back to converter</Link>
+    </section>
   );
 }

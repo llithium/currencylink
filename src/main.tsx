@@ -1,51 +1,59 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-
-import "./index.css";
-import "/node_modules/flag-icons/css/flag-icons.min.css";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import "./index.css";
+import { ThemeProvider } from "./hooks/useTheme";
 import ErrorPage from "./routes/ErrorPage";
-import Root from "./routes/Root";
 import NoMatch from "./routes/NoMatch";
-import ConversionPage, { ConversionPageLoader } from "./routes/ConversionPage";
-import HistoryPage from "./routes/HistoryPage";
-import RatesPage from "./routes/RatesPage";
+import Root, { rootLoader } from "./routes/Root";
+
+function RouteFallback() {
+  return (
+    <div className="route-fallback" role="status" aria-label="Loading Currency Link">
+      <span className="brand-mark" aria-hidden="true" />
+    </div>
+  );
+}
 
 const router = createBrowserRouter([
   {
+    id: "root",
     path: "/",
     element: <Root />,
-    loader: ConversionPageLoader,
+    loader: rootLoader,
     errorElement: <ErrorPage />,
-
+    hydrateFallbackElement: <RouteFallback />,
     children: [
       {
         index: true,
-        element: <ConversionPage />,
-        loader: ConversionPageLoader,
+        lazy: () =>
+          import("./routes/ConversionPage").then((module) => ({
+            Component: module.default,
+          })),
       },
-
       {
-        errorElement: <ErrorPage />,
-        children: [
-          {
-            path: "/rates",
-            element: <RatesPage />,
-            loader: ConversionPageLoader,
-          },
-          {
-            path: "/history",
-            element: <HistoryPage />,
-            loader: ConversionPageLoader,
-          },
-          { path: "*", element: <NoMatch /> },
-        ],
+        path: "rates",
+        lazy: () =>
+          import("./routes/RatesPage").then((module) => ({
+            Component: module.default,
+          })),
       },
+      {
+        path: "history",
+        lazy: () =>
+          import("./routes/HistoryPage").then((module) => ({
+            Component: module.default,
+          })),
+      },
+      { path: "*", element: <NoMatch /> },
     ],
   },
 ]);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>
   </React.StrictMode>,
 );

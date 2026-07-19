@@ -1,25 +1,27 @@
-import { useRouteError } from "react-router-dom";
+import { isRouteErrorResponse, Link, useRouteError } from "react-router-dom";
 
 export default function ErrorPage() {
-  const error: any = useRouteError();
-  console.error(error);
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? error.statusText || `Request failed with status ${error.status}`
+    : error instanceof Error
+      ? error.message
+      : "An unexpected error occurred.";
 
   return (
-    <div
-      className="signal"
-      id="error-page"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-    >
-      <div className="signal-glow" />
-      <div className="signal-view relative items-center px-6 text-center">
-        <span className="signal-diamond" />
-        <h1 className="text-[22px] font-bold text-text">Oops!</h1>
-        <p className="text-[14px] text-mid">
-          Sorry, an unexpected error has occurred.
-        </p>
-        <p className="mono text-[12px] text-dim">
-          {error.statusText || error.message}
-        </p>
+    <div className="error-page">
+      <div className="ambient-glow" aria-hidden="true" />
+      <div className="error-card panel" role="alert">
+        <span className="brand-mark" aria-hidden="true" />
+        <p className="eyebrow">Currency Link</p>
+        <h1>Rates are unavailable</h1>
+        <p>{message}</p>
+        <div className="error-actions">
+          <button type="button" className="primary-button" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+          <Link className="text-button" to="/">Return home</Link>
+        </div>
       </div>
     </div>
   );

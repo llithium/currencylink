@@ -1,168 +1,261 @@
-import { useEffect, useState } from "react";
-import { LoaderData, apiURL, isoDaysAgo } from "./ConversionPage";
-import axios from "axios";
-import { useLoaderData, useNavigate, useSearchParams } from "react-router-dom";
-import { currencyFlags } from "../utils/currencyFlags";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  getHistory,
+  getLatestRates,
+  percentageChange,
+  type RatePoint,
+} from "../api/frankfurter";
+import CurrencyBadge from "../components/CurrencyBadge";
 import CurrencyPicker from "../components/CurrencyPicker";
-import { Chg, Sparkline } from "../components/Signal";
+import { Chg, InlineError, LoadingRows, Sparkline } from "../components/Signal";
+import { usePinnedCurrencies } from "../hooks/usePinnedCurrencies";
+import { normalizeCurrencyParam } from "../utils/currencyParams";
 import { fmtRate } from "../utils/format";
+import { isoDate } from "../utils/historyRange";
+import { useCurrencies } from "./Root";
+
+type SortKey = "code" | "rate" | "change";
 
 interface RateRow {
   code: string;
-  name: string;
   rate: number;
   change: number;
   series: number[];
 }
 
+const PAGE_SIZE = 50;
+
 export default function RatesPage() {
-  const { currencyOptions, currencyNames } = useLoaderData() as LoaderData;
-  const navigate = useNavigate();
-  const [base, setBase] = useState("USD");
+  const currencies = useCurrencies();
+  const { pinnedCodes, togglePin } = usePinnedCurrencies();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const baseParam = normalizeCurrencyParam(
+    searchParams.get("base"),
+    currencies,
+    localStorage.getItem("currencylink-from") ?? "USD",
+  );
+  const base = baseParam.code;
   const [rows, setRows] = useState<RateRow[]>([]);
   const [query, setQuery] = useState("");
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [sort, setSort] = useState<SortKey>("code");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [effectiveDate, setEffectiveDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
-    const localFromCurrency = localStorage.getItem("fromCurrency");
-    localFromCurrency && setBase(localFromCurrency);
-    if (searchParams.has("from")) {
-      const from = parseInt(searchParams.get("from") as string);
-      if (currencyOptions[from]) setBase(currencyOptions[from]);
-    }
-  }, []);
+    if (!baseParam.migrated) return;
+    setSearchParams(
+      (current) => {
+        current.set("base", base);
+        return current;
+      },
+      { replace: true },
+    );
+  }, [base, baseParam.migrated, setSearchParams]);
 
   useEffect(() => {
-    async function setRates() {
-      try {
-        const response = await axios.get(
-          apiURL + `/${isoDaysAgo(30)}..?from=${base}`,
-        );
-        const byDate = response.data.rates as {
-          [date: string]: { [code: string]: number };
-        };
-        const dates = Object.keys(byDate).sort((a, b) => a.localeCompare(b));
-        if (dates.length === 0) {
-          setRows([]);
-          return;
+    const controller = new AbortController();
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() - 30);
+    const recentStart = new Date();
+    recentStart.setUTCDate(recentStart.getUTCDate() - 10);
+    setLoading(true);
+    setError("");
+
+    Promise.all([
+      getLatestRates(base, undefined, controller.signal),
+      getHistory({ base, from: isoDate(start), group: "week" }, controller.signal),
+      getHistory({ base, from: isoDate(recentStart) }, controller.signal),
+    ])
+      .then(([latest, history, recentHistory]) => {
+        const historyByCode = new Map<string, RatePoint[]>();
+        for (const point of history) {
+          const series = historyByCode.get(point.quote) ?? [];
+          series.push(point);
+          historyByCode.set(point.quote, series);
         }
-        const latest = byDate[dates[dates.length - 1]];
-        const nextRows: RateRow[] = Object.keys(latest)
-          .sort((a, b) => a.localeCompare(b))
-          .map((code) => {
-            const series = dates
-              .map((d) => byDate[d][code])
-              .filter((v): v is number => typeof v === "number");
-            const last = series[series.length - 1];
-            const prev = series.length >= 2 ? series[series.length - 2] : last;
-            const idx = currencyOptions.indexOf(code);
+        const recentByCode = new Map<string, RatePoint[]>();
+        for (const point of recentHistory) {
+          const series = recentByCode.get(point.quote) ?? [];
+          series.push(point);
+          recentByCode.set(point.quote, series);
+        }
+        setRows(
+          latest.filter((point) => point.quote !== base).map((point) => {
+            const series = historyByCode.get(point.quote) ?? [point];
+            const recentSeries = recentByCode.get(point.quote) ?? [point];
+            const previous = recentSeries[recentSeries.length - 2] ?? point;
             return {
-              code,
-              name: idx >= 0 ? currencyNames[idx] : code,
-              rate: latest[code],
-              change: prev ? ((last - prev) / prev) * 100 : 0,
-              series,
+              code: point.quote,
+              rate: point.rate,
+              change: percentageChange(point.rate, previous.rate),
+              series: series.map((item) => item.rate),
             };
-          });
-        setRows(nextRows);
-      } catch (error) {
-        console.log(error);
-      }
-    }
-    setRates();
-  }, [base]);
+          }),
+        );
+        setEffectiveDate(latest[0]?.date ?? "");
+      })
+      .catch((requestError: unknown) => {
+        if (!(requestError instanceof DOMException && requestError.name === "AbortError")) {
+          setError(requestError instanceof Error ? requestError.message : "Please try again.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
-  function handleChangeBase(key: string) {
-    const value = currencyOptions[parseInt(key)];
-    if (!value) return;
-    setBase(value);
-    localStorage.setItem("fromCurrency", value);
-    localStorage.setItem("selectedFromCurrency", key);
-    setSearchParams((searchParams) => {
-      searchParams.set("from", key);
-      return searchParams;
+    return () => controller.abort();
+  }, [base, retryKey]);
+
+  const currencyByCode = useMemo(
+    () => new Map(currencies.map((currency) => [currency.code, currency])),
+    [currencies],
+  );
+
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const filtered = normalizedQuery
+      ? rows.filter((row) => {
+          const currency = currencyByCode.get(row.code);
+          return `${row.code} ${currency?.name ?? ""}`.toLocaleLowerCase().includes(normalizedQuery);
+        })
+      : rows;
+    return [...filtered].sort((a, b) => {
+      const pinnedOrder = Number(pinnedCodes.includes(b.code)) - Number(pinnedCodes.includes(a.code));
+      if (pinnedOrder !== 0) return pinnedOrder;
+      if (sort === "rate") return b.rate - a.rate;
+      if (sort === "change") return b.change - a.change;
+      return a.code.localeCompare(b.code);
+    });
+  }, [currencyByCode, pinnedCodes, query, rows, sort]);
+
+  const visibleRows = filteredRows.slice(0, visibleCount);
+
+  function setBase(code: string) {
+    localStorage.setItem("currencylink-from", code);
+    setVisibleCount(PAGE_SIZE);
+    setSearchParams((current) => {
+      current.set("base", code);
+      return current;
     });
   }
 
-  // Open History pre-set to base → clicked currency.
-  function openPair(code: string) {
-    const from = currencyOptions.indexOf(base);
-    const to = currencyOptions.indexOf(code);
-    if (from < 0 || to < 0) return;
-    localStorage.setItem("fromCurrency", base);
-    localStorage.setItem("toCurrency", code);
-    localStorage.setItem("selectedFromCurrency", String(from));
-    localStorage.setItem("selectedToCurrency", String(to));
-    navigate(`/history?from=${from}&to=${to}`);
+  function prepareHistory(code: string) {
+    localStorage.setItem("currencylink-from", base);
+    localStorage.setItem("currencylink-to", code);
   }
 
-  const q = query.trim().toLowerCase();
-  const visible = q
-    ? rows.filter((r) => `${r.code} ${r.name}`.toLowerCase().includes(q))
-    : rows;
-
   return (
-    <div className="signal-view">
-      <div className="flex items-center gap-[10px]">
-        <input
-          className="signal-search flex-1"
-          placeholder="Search currency…"
-          aria-label="Search currency"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <div className="w-[132px] flex-none">
-          <CurrencyPicker
-            aria-label="Base currency"
-            currencyOptions={currencyOptions}
-            currencyNames={currencyNames}
-            value={base}
-            onSelectionChange={handleChangeBase}
+    <section className="page page-rates" aria-labelledby="rates-title">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Market overview</p>
+          <h1 id="rates-title">Reference rates</h1>
+        </div>
+        <p>Search every active currency and compare the latest available daily movement.</p>
+      </div>
+
+      <div className="rates-toolbar">
+        <label className="search-field">
+          <span className="sr-only">Search currencies</span>
+          <svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true">
+            <circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path d="m12 12 3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setVisibleCount(PAGE_SIZE);
+            }}
+            placeholder="Search code or currency name"
           />
+        </label>
+        <label className="sort-field">
+          <span>Sort</span>
+          <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
+            <option value="code">Currency</option>
+            <option value="rate">Highest rate</option>
+            <option value="change">Largest gain</option>
+          </select>
+        </label>
+        <div className="base-picker-group">
+          <CurrencyPicker currencies={currencies} value={base} onChange={setBase} aria-label="Base currency" />
+          <button
+            className={`pin-button pin-base${pinnedCodes.includes(base) ? " pin-button-active" : ""}`}
+            type="button"
+            aria-label={`${pinnedCodes.includes(base) ? "Unpin" : "Pin"} ${base} reference rate`}
+            aria-pressed={pinnedCodes.includes(base)}
+            onClick={() => togglePin(base)}
+            title={`${pinnedCodes.includes(base) ? "Unpin" : "Pin"} ${base}`}
+          >
+            <svg width="15" height="15" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M7 3h6l-.8 4 2.8 2.8v1.2H5V9.8L7.8 7 7 3Zm3 8v6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div className="signal-card overflow-hidden">
-        <div className="flex items-center border-b border-border px-[18px] py-[10px]">
-          <span className="micro">1 {base} buys</span>
-          <span className="micro ml-auto">30 days · 24h</span>
+      <div className="panel rates-panel">
+        <div className="rates-header">
+          <span>1 {base} buys</span>
+          <span>{effectiveDate ? `Effective ${effectiveDate}` : "Daily reference rates"}</span>
+          <span>30-day trend · previous reference change</span>
         </div>
 
-        {visible.map((row) => (
-          <button
-            key={row.code}
-            type="button"
-            className="signal-row"
-            onClick={() => openPair(row.code)}
-          >
-            <span
-              className={`fi ${currencyFlags[row.code] ?? ""} flex-none shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]`}
-              style={{ width: 28, height: 20, borderRadius: 4 }}
-            />
-            <div className="min-w-0">
-              <div className="text-[14px] font-bold text-text">{row.code}</div>
-              <div className="max-w-[170px] overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-dim lg:max-w-none">
-                {row.name}
-              </div>
+        {loading && <LoadingRows count={7} />}
+        {error && <InlineError message={error} retry={() => setRetryKey((key) => key + 1)} />}
+        {!loading && !error && visibleRows.length === 0 && (
+          <div className="empty-state">No currency matches “{query}”.</div>
+        )}
+        {!loading && !error && visibleRows.map((row) => {
+          const currency = currencyByCode.get(row.code);
+          if (!currency) return null;
+          const isPinned = pinnedCodes.includes(row.code);
+          return (
+            <div className={`rate-row${isPinned ? " rate-row-pinned" : ""}`} key={row.code}>
+              <button
+                className={`pin-button${isPinned ? " pin-button-active" : ""}`}
+                type="button"
+                aria-label={`${isPinned ? "Unpin" : "Pin"} ${row.code} reference rate`}
+                aria-pressed={isPinned}
+                onClick={() => togglePin(row.code)}
+                title={`${isPinned ? "Unpin" : "Pin"} ${row.code}`}
+              >
+                <svg width="15" height="15" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M7 3h6l-.8 4 2.8 2.8v1.2H5V9.8L7.8 7 7 3Zm3 8v6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <Link
+                className="rate-row-link"
+                to={`/history?from=${base}&to=${row.code}&range=1M`}
+                onClick={() => prepareHistory(row.code)}
+                aria-label={`${row.code} ${currency.name}: ${fmtRate(row.rate)}. View history`}
+              >
+                <CurrencyBadge currency={currency} />
+                <span className="rate-identity">
+                  <strong>{row.code}</strong>
+                  <span>{currency.name}</span>
+                </span>
+                <Sparkline data={row.series} />
+                <span className="rate-values">
+                  <strong>{fmtRate(row.rate)}</strong>
+                  <Chg value={row.change} size={11} label="Previous reference change" />
+                </span>
+              </Link>
             </div>
-            <span className="ml-auto">
-              <Sparkline data={row.series} width={60} height={22} />
-            </span>
-            <div className="w-[96px] text-right">
-              <div className="mono text-[13px] text-text">
-                {fmtRate(row.rate)}
-              </div>
-              <Chg value={row.change} size={11} />
-            </div>
-          </button>
-        ))}
+          );
+        })}
 
-        {!visible.length && (
-          <div className="px-[18px] py-[22px] text-[13.5px] text-dim">
-            {q ? `No currency matches “${query}”.` : "Loading rates…"}
-          </div>
+        {!loading && !error && visibleCount < filteredRows.length && (
+          <button className="show-more" type="button" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>
+            Show {Math.min(PAGE_SIZE, filteredRows.length - visibleCount)} more
+          </button>
         )}
       </div>
-    </div>
+    </section>
   );
 }
