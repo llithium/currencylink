@@ -5,8 +5,6 @@ pair explorer. It uses free, keyless Frankfurter v2 reference-rate data and make
 clear that the displayed values are daily blended reference rates rather than
 live tradable quotes.
 
-**Link:** https://currencylink.netlify.app/
-
 ## Features
 
 - Convert between all active Frankfurter currencies with shareable code-based URLs.
