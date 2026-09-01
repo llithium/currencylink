@@ -27,15 +27,15 @@ live tradable quotes.
 ## Local development
 
 ```sh
-pnpm install
-pnpm dev
+bun install
+bun run dev
 ```
 
 Quality checks:
 
 ```sh
-pnpm lint
-pnpm test
-pnpm build
-pnpm test:e2e
+bun run lint
+bun run test
+bun run build
+bun run test:e2e
 ```

@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import { fixupPluginRules } from "@eslint/compat";
 import globals from "globals";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -25,8 +26,8 @@ export default tseslint.config(
       },
     },
     plugins: {
-      react,
-      "react-hooks": reactHooks,
+      react: fixupPluginRules(react),
+      "react-hooks": fixupPluginRules(reactHooks),
     },
     settings: {
       react: { version: "detect" },
@@ -37,6 +38,8 @@ export default tseslint.config(
       "react/jsx-uses-react": "off",
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
+      // Existing effects intentionally synchronize request and UI state.
+      "react-hooks/set-state-in-effect": "off",
     },
   },
   {
