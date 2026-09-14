@@ -23,7 +23,11 @@ export interface RootLoaderData {
   currencies: Currency[];
 }
 
-export async function rootLoader({ request }: { request: Request }): Promise<RootLoaderData> {
+export async function rootLoader({
+  request,
+}: {
+  request: Request;
+}): Promise<RootLoaderData> {
   return { currencies: await getCurrencies(request.signal) };
 }
 
@@ -51,12 +55,16 @@ function Root() {
   const [effectiveDate, setEffectiveDate] = useState("");
 
   const availableTickerCodes = useMemo(
-    () => pinnedCodes.filter((code) => currencies.some((currency) => currency.code === code)),
+    () =>
+      pinnedCodes.filter((code) =>
+        currencies.some((currency) => currency.code === code),
+      ),
     [currencies, pinnedCodes],
   );
   const fallbackQuote = useMemo(
-    () => currencies.find((currency) => currency.code === "EUR")?.code
-      ?? currencies.find((currency) => currency.code !== "USD")?.code,
+    () =>
+      currencies.find((currency) => currency.code === "EUR")?.code ??
+      currencies.find((currency) => currency.code !== "USD")?.code,
     [currencies],
   );
 
@@ -71,9 +79,8 @@ function Root() {
     const from = new Date();
     from.setUTCDate(from.getUTCDate() - 10);
     const quoteCodes = availableTickerCodes.filter((code) => code !== "USD");
-    const requestedCodes = quoteCodes.length > 0
-      ? quoteCodes
-      : fallbackQuote ? [fallbackQuote] : [];
+    const requestedCodes =
+      quoteCodes.length > 0 ? quoteCodes : fallbackQuote ? [fallbackQuote] : [];
 
     if (requestedCodes.length === 0) {
       setTicker({ USD: { rate: 1, change: 0 } });
@@ -116,7 +123,6 @@ function Root() {
 
   return (
     <div className="app-shell">
-      <div className="ambient-glow" aria-hidden="true" />
       <div className="app-wrap">
         <header className="site-header">
           <div className="brand-row">
@@ -124,29 +130,7 @@ function Root() {
               <span className="brand-mark" aria-hidden="true" />
               <span>Currency Link</span>
             </NavLink>
-            <span className="reference-label">
-              USD-based reference rates{effectiveDate ? ` · ${effectiveDate}` : ""}
-            </span>
             <ThemeToggle />
-          </div>
-
-          <div className="ticker" aria-label="Pinned USD-based reference rates">
-            {availableTickerCodes.length === 0 && (
-              <Link className="ticker-empty" to="/rates?base=USD">
-                No pinned rates · Choose currencies on Rates
-              </Link>
-            )}
-            {availableTickerCodes.map((code) => {
-              const item = ticker[code];
-              return (
-                <span className="ticker-item" key={code}>
-                  <span className="ticker-flag" aria-hidden="true">{currencyFlag(code)}</span>
-                  <strong>{code}</strong>
-                  <span>{item ? fmtRate(item.rate) : "—"}</span>
-                  {item && <Chg value={item.change} size={10} />}
-                </span>
-              );
-            })}
           </div>
 
           <nav className="primary-nav" aria-label="Primary navigation">
@@ -155,7 +139,9 @@ function Root() {
                 key={item.path}
                 to={{ pathname: item.path, search: location.search }}
                 end={item.path === "/"}
-                className={({ isActive }) => `nav-link${isActive ? " nav-link-active" : ""}`}
+                className={({ isActive }) =>
+                  `nav-link${isActive ? " nav-link-active" : ""}`
+                }
               >
                 {item.label}
               </NavLink>
@@ -166,6 +152,36 @@ function Root() {
         <main className="main-content">
           <Outlet />
         </main>
+
+        <aside className="watchlist" aria-label="Pinned rates">
+          <div className="watchlist-heading">
+            <h2>Your pinned rates</h2>
+            <Link to="/rates?base=USD">Manage currencies</Link>
+          </div>
+          <p className="watchlist-basis">
+            USD reference rates{effectiveDate ? ` / ${effectiveDate}` : ""}
+          </p>
+          <div className="ticker" aria-label="Pinned USD-based reference rates">
+            {availableTickerCodes.length === 0 && (
+              <Link className="ticker-empty" to="/rates?base=USD">
+                No pinned rates · Choose currencies on Rates
+              </Link>
+            )}
+            {availableTickerCodes.map((code) => {
+              const item = ticker[code];
+              return (
+                <span className="ticker-item" key={code}>
+                  <span className="ticker-flag" aria-hidden="true">
+                    {currencyFlag(code)}
+                  </span>
+                  <strong>{code}</strong>
+                  <span>{item ? fmtRate(item.rate) : "—"}</span>
+                  {item && <Chg value={item.change} size={10} />}
+                </span>
+              );
+            })}
+          </div>
+        </aside>
 
         <footer className="site-footer">
           <span>Daily blended reference rates</span>

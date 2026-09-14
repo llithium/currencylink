@@ -26,7 +26,8 @@ export default function ConversionPage() {
   const pair = useCurrencyPair(currencies);
   const [searchParams, setSearchParams] = useSearchParams();
   const [amount, setAmount] = useState(() => {
-    const initial = searchParams.get("amount") ?? localStorage.getItem(AMOUNT_KEY) ?? "1";
+    const initial =
+      searchParams.get("amount") ?? localStorage.getItem(AMOUNT_KEY) ?? "1";
     return normalizeAmountInput(initial) || "1";
   });
   const [rate, setRate] = useState<RatePoint | null>(null);
@@ -42,8 +43,15 @@ export default function ConversionPage() {
     getRate(pair.from, pair.to, controller.signal)
       .then(setRate)
       .catch((requestError: unknown) => {
-        if (!(requestError instanceof DOMException && requestError.name === "AbortError")) {
-          setError(requestError instanceof Error ? requestError.message : "Please try again.");
+        if (!(
+          requestError instanceof DOMException &&
+          requestError.name === "AbortError"
+        )) {
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Please try again.",
+          );
         }
       })
       .finally(() => {
@@ -72,74 +80,107 @@ export default function ConversionPage() {
     <section className="page page-convert" aria-labelledby="convert-title">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Currency converter</p>
-          <h1 id="convert-title">Convert with reference rates</h1>
+          <h1 id="convert-title">Currency, made clear.</h1>
         </div>
-        <p>Clear, daily midpoint estimates for 200+ world currencies.</p>
       </div>
 
-      <div className="converter-grid">
-        <article className="panel converter-panel">
-          <div className="panel-topline">
-            <span className="eyebrow">You send</span>
-            <CurrencyPicker
-              currencies={currencies}
-              value={pair.from}
-              excludeCode={pair.to}
-              onChange={pair.setFrom}
-              aria-label="Convert from currency"
+      <div className="conversion-workspace">
+        <div className="converter-grid">
+          <article className="panel converter-panel">
+            <div className="panel-topline">
+              <span className="eyebrow">Amount</span>
+              <CurrencyPicker
+                currencies={currencies}
+                value={pair.from}
+                excludeCode={pair.to}
+                onChange={pair.setFrom}
+                aria-label="Convert from currency"
+              />
+            </div>
+            <label className="sr-only" htmlFor="convert-amount">
+              Amount
+            </label>
+            <input
+              id="convert-amount"
+              className="amount-input"
+              inputMode="decimal"
+              value={amount}
+              placeholder="0"
+              onChange={(event) => updateAmount(event.target.value)}
             />
-          </div>
-          <label className="sr-only" htmlFor="convert-amount">Amount</label>
-          <input
-            id="convert-amount"
-            className="amount-input"
-            inputMode="decimal"
-            value={amount}
-            placeholder="0"
-            onChange={(event) => updateAmount(event.target.value)}
-          />
-          <span className="currency-name">
-            {currencies.find((currency) => currency.code === pair.from)?.name}
-          </span>
-        </article>
+            <span className="currency-name">
+              {currencies.find((currency) => currency.code === pair.from)?.name}
+            </span>
+          </article>
 
-        <button type="button" className="swap-button" onClick={pair.swap} aria-label="Swap currencies">
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-            <path d="M5.5 2v11m0 0L2.5 10m3 3 3-3M12.5 16V5m0 0-3 3m3-3 3 3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-
-        <article className="panel converter-panel result-panel" aria-live="polite">
-          <div className="panel-topline">
-            <span className="eyebrow">You receive</span>
-            <CurrencyPicker
-              currencies={currencies}
-              value={pair.to}
-              excludeCode={pair.from}
-              onChange={pair.setTo}
-              aria-label="Convert to currency"
-            />
-          </div>
-          {loading ? (
-            <div className="result-skeleton" aria-label="Loading conversion" role="status" />
-          ) : (
-            <div className="result-value">{rate ? fmtCurrency(result, pair.to) : "—"}</div>
-          )}
-          <span className="currency-name">
-            {currencies.find((currency) => currency.code === pair.to)?.name}
-          </span>
-        </article>
-      </div>
-
-      {error && <InlineError message={error} retry={() => setRetryKey((key) => key + 1)} />}
-
-      <div className="quick-amounts" aria-label="Quick amounts">
-        {QUICK_AMOUNTS.map((quickAmount) => (
-          <button key={quickAmount} type="button" onClick={() => updateAmount(String(quickAmount))}>
-            {quickAmount >= 1000 ? `${quickAmount / 1000}K` : quickAmount}
+          <button
+            type="button"
+            className="swap-button"
+            onClick={pair.swap}
+            aria-label="Swap currencies"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path
+                d="M5.5 2v11m0 0L2.5 10m3 3 3-3M12.5 16V5m0 0-3 3m3-3 3 3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
-        ))}
+
+          <article
+            className="panel converter-panel result-panel"
+            aria-live="polite"
+          >
+            <div className="panel-topline">
+              <span className="eyebrow">Converted amount</span>
+              <CurrencyPicker
+                currencies={currencies}
+                value={pair.to}
+                excludeCode={pair.from}
+                onChange={pair.setTo}
+                aria-label="Convert to currency"
+              />
+            </div>
+            {loading ? (
+              <div
+                className="result-skeleton"
+                aria-label="Loading conversion"
+                role="status"
+              />
+            ) : (
+              <div className="result-value">
+                {rate ? fmtCurrency(result, pair.to) : "—"}
+              </div>
+            )}
+            <span className="currency-name">
+              {currencies.find((currency) => currency.code === pair.to)?.name}
+            </span>
+          </article>
+        </div>
+
+        {error && (
+          <InlineError
+            message={error}
+            retry={() => setRetryKey((key) => key + 1)}
+          />
+        )}
+
+        <div className="quick-amounts" aria-label="Quick amounts">
+          {QUICK_AMOUNTS.map((quickAmount) => (
+            <button
+              key={quickAmount}
+              type="button"
+              aria-pressed={amountValue === quickAmount}
+              onClick={() => updateAmount(String(quickAmount))}
+            >
+              {quickAmount >= 1000 ? `${quickAmount / 1000}K` : quickAmount}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="rate-details panel">
@@ -159,13 +200,17 @@ export default function ConversionPage() {
           <span className="eyebrow">Effective date</span>
           <strong>{rate?.date ?? "—"}</strong>
         </div>
-        <Link className="primary-button" to={`/history?from=${pair.from}&to=${pair.to}&range=1M`}>
+        <Link
+          className="primary-button"
+          to={`/history?from=${pair.from}&to=${pair.to}&range=1M`}
+        >
           View history
         </Link>
       </div>
 
       <p className="rate-disclaimer">
-        Reference estimate only. Banks and payment providers may add fees or a different exchange spread.
+        Reference estimate only. Banks and payment providers may add fees or a
+        different exchange spread.
       </p>
     </section>
   );

@@ -55,7 +55,7 @@ export default function RateChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: color("--chart-label"),
-        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+        fontFamily: '"Manrope", system-ui, sans-serif',
         fontSize: 11,
       },
       grid: {
@@ -166,7 +166,9 @@ export default function RateChart({
         <strong>
           {hover ? fmtRate(hover.rate) : "—"} {quote}
         </strong>
-        {hover && <Chg value={hoverChange} size={11} label="Change from range open" />}
+        {hover && (
+          <Chg value={hoverChange} size={11} label="Change from range open" />
+        )}
       </div>
       <button
         type="button"

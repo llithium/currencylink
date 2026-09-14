@@ -33,7 +33,7 @@ function applyTheme(theme: ThemeMode) {
   document.documentElement.style.colorScheme = theme;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", theme === "dark" ? "#0c0a09" : "#f7f4ef");
+    ?.setAttribute("content", theme === "dark" ? "#101c30" : "#f3f6fb");
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -63,7 +63,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [theme],
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
 }
 
 export function useTheme(): ThemeContextValue {

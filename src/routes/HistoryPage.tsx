@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getHistory, percentageChange, type RatePoint } from "../api/frankfurter";
+import {
+  getHistory,
+  percentageChange,
+  type RatePoint,
+} from "../api/frankfurter";
 import CurrencyPicker from "../components/CurrencyPicker";
 import RateChart from "../components/RateChart";
 import { Chg, InlineError } from "../components/Signal";
@@ -19,13 +23,17 @@ export default function HistoryPage() {
   const pair = useCurrencyPair(currencies);
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedRange = searchParams.get("range");
-  const range: HistoryRange = isHistoryRange(requestedRange) ? requestedRange : "1M";
+  const range: HistoryRange = isHistoryRange(requestedRange)
+    ? requestedRange
+    : "1M";
   const [data, setData] = useState<RatePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
 
-  const fromCurrency = currencies.find((currency) => currency.code === pair.from)!;
+  const fromCurrency = currencies.find(
+    (currency) => currency.code === pair.from,
+  )!;
   const toCurrency = currencies.find((currency) => currency.code === pair.to)!;
   const requestRange = useMemo(
     () => getHistoryRequestRange(range, fromCurrency, toCurrency),
@@ -48,8 +56,15 @@ export default function HistoryPage() {
     )
       .then(setData)
       .catch((requestError: unknown) => {
-        if (!(requestError instanceof DOMException && requestError.name === "AbortError")) {
-          setError(requestError instanceof Error ? requestError.message : "Please try again.");
+        if (!(
+          requestError instanceof DOMException &&
+          requestError.name === "AbortError"
+        )) {
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Please try again.",
+          );
         }
       })
       .finally(() => {
@@ -78,33 +93,78 @@ export default function HistoryPage() {
     <section className="page page-history" aria-labelledby="history-title">
       <div className="page-heading history-heading">
         <div>
-          <p className="eyebrow">Pair history</p>
           <h1 id="history-title">Exchange-rate history</h1>
         </div>
-        <p>Explore daily reference data with interactive zoom, pan, and precise crosshair values.</p>
+        <p>See how your currency pair has moved over time.</p>
       </div>
 
       <div className="history-toolbar">
-        <CurrencyPicker currencies={currencies} value={pair.from} excludeCode={pair.to} onChange={pair.setFrom} aria-label="History from currency" />
-        <button type="button" className="inline-swap" onClick={pair.swap} aria-label="Swap history currencies">⇄</button>
-        <CurrencyPicker currencies={currencies} value={pair.to} excludeCode={pair.from} onChange={pair.setTo} aria-label="History to currency" />
-        <span className="history-range-label">Past {range === "MAX" ? "maximum" : range}</span>
+        <CurrencyPicker
+          currencies={currencies}
+          value={pair.from}
+          excludeCode={pair.to}
+          onChange={pair.setFrom}
+          aria-label="History from currency"
+        />
+        <button
+          type="button"
+          className="inline-swap"
+          onClick={pair.swap}
+          aria-label="Swap history currencies"
+        >
+          ⇄
+        </button>
+        <CurrencyPicker
+          currencies={currencies}
+          value={pair.to}
+          excludeCode={pair.from}
+          onChange={pair.setTo}
+          aria-label="History to currency"
+        />
+        <span className="history-range-label">
+          Past {range === "MAX" ? "maximum" : range}
+        </span>
       </div>
 
       <div className="history-summary" aria-live="polite">
         <div>
           <span className="eyebrow">Latest reference rate</span>
-          <strong>{current ? fmtRate(current) : "—"} <small>{pair.to}</small></strong>
+          <strong>
+            {current ? fmtRate(current) : "—"} <small>{pair.to}</small>
+          </strong>
         </div>
-        {!loading && data.length > 0 && <Chg value={change} size={14} label={`${range} change`} />}
-        <span>{data.length ? `${data[0].date} → ${data[data.length - 1].date}` : "Loading date range…"}</span>
+        {!loading && data.length > 0 && (
+          <Chg value={change} size={14} label={`${range} change`} />
+        )}
+        <span>
+          {data.length
+            ? `${data[0].date} → ${data[data.length - 1].date}`
+            : "Loading date range…"}
+        </span>
       </div>
 
       <div className="panel history-chart-panel">
-        {loading && <div className="chart-skeleton" aria-label="Loading history chart" role="status" />}
-        {error && <InlineError message={error} retry={() => setRetryKey((key) => key + 1)} />}
-        {!loading && !error && data.length > 0 && <RateChart data={data} quote={pair.to} />}
-        {!loading && !error && data.length === 0 && <div className="empty-state">No history is available for this pair and range.</div>}
+        {loading && (
+          <div
+            className="chart-skeleton"
+            aria-label="Loading history chart"
+            role="status"
+          />
+        )}
+        {error && (
+          <InlineError
+            message={error}
+            retry={() => setRetryKey((key) => key + 1)}
+          />
+        )}
+        {!loading && !error && data.length > 0 && (
+          <RateChart data={data} quote={pair.to} />
+        )}
+        {!loading && !error && data.length === 0 && (
+          <div className="empty-state">
+            No history is available for this pair and range.
+          </div>
+        )}
 
         <div className="range-controls" aria-label="History range">
           {HISTORY_RANGES.map((item) => (
@@ -140,7 +200,9 @@ export default function HistoryPage() {
       </div>
 
       <p className="chart-attribution">
-        Interactive charts by <a href="https://www.tradingview.com/">TradingView</a> · Lightweight Charts™
+        Interactive charts by{" "}
+        <a href="https://www.tradingview.com/">TradingView</a> · Lightweight
+        Charts™
       </p>
     </section>
   );
