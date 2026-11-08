@@ -7,6 +7,7 @@ import RateChart from "./RateChart";
 
 const chartMocks = vi.hoisted(() => {
   const setData = vi.fn();
+  const createSeriesMarkers = vi.fn();
   const fitContent = vi.fn();
   const remove = vi.fn();
   const applyOptions = vi.fn();
@@ -19,7 +20,16 @@ const chartMocks = vi.hoisted(() => {
     subscribeCrosshairMove,
     timeScale: () => ({ fitContent }),
   }));
-  return { addSeries, applyOptions, createChart, fitContent, remove, setData, subscribeCrosshairMove };
+  return {
+    addSeries,
+    applyOptions,
+    createChart,
+    createSeriesMarkers,
+    fitContent,
+    remove,
+    setData,
+    subscribeCrosshairMove,
+  };
 });
 
 vi.mock("lightweight-charts", () => ({
@@ -28,6 +38,7 @@ vi.mock("lightweight-charts", () => ({
   CrosshairMode: { Normal: 0 },
   LineStyle: { Dashed: 2, Dotted: 1 },
   createChart: chartMocks.createChart,
+  createSeriesMarkers: chartMocks.createSeriesMarkers,
 }));
 
 const data: RatePoint[] = [
@@ -56,6 +67,17 @@ describe("RateChart", () => {
       { time: "2026-07-17", value: 1.1 },
       { time: "2026-07-18", value: 1.2 },
     ]);
+    expect(chartMocks.createSeriesMarkers).toHaveBeenCalledWith(
+      expect.anything(),
+      [
+        expect.objectContaining({
+          time: "2026-07-18",
+          price: 1.2,
+          shape: "circle",
+        }),
+      ],
+      { autoScale: false },
+    );
     await user.click(screen.getByRole("button", { name: "Reset chart zoom" }));
     expect(chartMocks.fitContent).toHaveBeenCalled();
 

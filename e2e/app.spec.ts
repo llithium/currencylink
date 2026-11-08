@@ -112,6 +112,39 @@ test("conversion, responsive swap direction, and theme preference persist", asyn
   ).toBeVisible();
 });
 
+test("conversion keeps its live region through a currency swap", async ({
+  page,
+}) => {
+  let releaseSwappedRate: (() => void) | undefined;
+  const swappedRate = new Promise<void>((resolve) => {
+    releaseSwappedRate = resolve;
+  });
+  await page.route("**/v2/rate/USD/EUR", async (route) => {
+    await swappedRate;
+    await route.fallback();
+  });
+
+  await page.goto("/?from=EUR&to=USD&amount=2");
+  const liveRegion = page.locator('.result-panel [aria-live="polite"]');
+  await expect(liveRegion).toHaveText("$2.22");
+  const originalRegion = await liveRegion.elementHandle();
+
+  try {
+    await page.getByRole("button", { name: "Swap currencies" }).click();
+    await expect(liveRegion).toHaveText("Loading conversion");
+  } finally {
+    releaseSwappedRate?.();
+  }
+
+  await expect(liveRegion).toHaveText("€1.80");
+  expect(
+    await liveRegion.evaluate(
+      (region, original) => region === original,
+      originalRegion,
+    ),
+  ).toBe(true);
+});
+
 test("primary navigation keeps a stable footprint when the active page changes", async ({
   page,
 }) => {
@@ -136,6 +169,10 @@ test("rates pins persist and search opens the selected pair history", async ({
     .getByRole("textbox", { name: "Search currencies" })
     .fill("Japanese");
   await page.getByRole("button", { name: "Pin JPY reference rate" }).click();
+  const pinnedRow = page.locator(".rate-row").filter({
+    has: page.getByRole("button", { name: "Unpin JPY reference rate" }),
+  });
+  await expect(pinnedRow).toHaveCSS("display", "grid");
   await expect(
     page
       .getByLabel("Pinned USD-based reference rates")

@@ -167,10 +167,12 @@ export default function RatesPage() {
   return (
     <section className="page page-rates" aria-labelledby="rates-title">
       <div className="page-heading">
-        <div>
-          <h1 id="rates-title">Reference rates</h1>
-        </div>
-        <p>Compare currencies. Keep your favorites close.</p>
+        <h1 id="rates-title">Reference rates</h1>
+        {effectiveDate && (
+          <p>
+            Effective <time dateTime={effectiveDate}>{effectiveDate}</time>
+          </p>
+        )}
       </div>
 
       <div className="rates-toolbar">
@@ -213,6 +215,7 @@ export default function RatesPage() {
           </select>
         </label>
         <div className="base-picker-group">
+          <span className="base-label">Base currency</span>
           <CurrencyPicker
             currencies={currencies}
             value={base}
@@ -220,36 +223,26 @@ export default function RatesPage() {
             aria-label="Base currency"
           />
           <button
-            className={`pin-button pin-base${pinnedCodes.includes(base) ? "pin-button-active" : ""}`}
+            className="pin-button pin-base"
             type="button"
             aria-label={`${pinnedCodes.includes(base) ? "Unpin" : "Pin"} ${base} reference rate`}
             aria-pressed={pinnedCodes.includes(base)}
             onClick={() => togglePin(base)}
             title={`${pinnedCodes.includes(base) ? "Unpin" : "Pin"} ${base}`}
           >
-            <svg width="15" height="15" viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M7 3h6l-.8 4 2.8 2.8v1.2H5V9.8L7.8 7 7 3Zm3 8v6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            {pinnedCodes.includes(base) ? "Pinned" : "Pin"}
           </button>
         </div>
       </div>
 
       <div className="panel rates-panel">
         <div className="rates-header">
-          <span>1 {base} buys</span>
-          <span>
-            {effectiveDate
-              ? `Effective ${effectiveDate}`
-              : "Daily reference rates"}
+          <span>Currency</span>
+          <span className="trend-heading">30-day trend</span>
+          <span className="quote-heading">
+            <strong>Per 1 {base}</strong>
+            <span>Last change</span>
           </span>
-          <span>30-day trend · previous reference change</span>
         </div>
 
         {loading && <LoadingRows count={7} />}
@@ -270,11 +263,12 @@ export default function RatesPage() {
             const isPinned = pinnedCodes.includes(row.code);
             return (
               <div
-                className={`rate-row${isPinned ? "rate-row-pinned" : ""}`}
+                className="rate-row"
+                data-pinned={isPinned || undefined}
                 key={row.code}
               >
                 <button
-                  className={`pin-button${isPinned ? "pin-button-active" : ""}`}
+                  className="pin-button"
                   type="button"
                   aria-label={`${isPinned ? "Unpin" : "Pin"} ${row.code} reference rate`}
                   aria-pressed={isPinned}
@@ -282,8 +276,8 @@ export default function RatesPage() {
                   title={`${isPinned ? "Unpin" : "Pin"} ${row.code}`}
                 >
                   <svg
-                    width="15"
-                    height="15"
+                    width="17"
+                    height="17"
                     viewBox="0 0 20 20"
                     aria-hidden="true"
                   >
