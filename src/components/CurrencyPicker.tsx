@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   ComboBox,
@@ -28,7 +28,15 @@ export default function CurrencyPicker({
   className = "",
   "aria-label": ariaLabel,
 }: CurrencyPickerProps) {
+  const fieldRef = useRef<HTMLDivElement>(null);
   const selected = currencies.find((currency) => currency.code === value);
+  const options = useMemo(
+    () =>
+      selected
+        ? [selected, ...currencies.filter((currency) => currency !== selected)]
+        : currencies,
+    [currencies, selected],
+  );
   const [inputValue, setInputValue] = useState(value);
 
   useEffect(() => setInputValue(value), [value]);
@@ -53,7 +61,7 @@ export default function CurrencyPicker({
         textValue.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
       }
     >
-      <div className="currency-picker-field">
+      <div className="currency-picker-field" ref={fieldRef}>
         {selected && <CurrencyBadge currency={selected} compact />}
         <Input
           className="currency-picker-input"
@@ -62,12 +70,24 @@ export default function CurrencyPicker({
         />
         <Button className="currency-picker-button" aria-label="Show currencies">
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path
+              d="m4 6 4 4 4-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
           </svg>
         </Button>
       </div>
-      <Popover className="currency-popover" placement="bottom start">
-        <ListBox items={currencies} className="currency-listbox">
+      <Popover
+        className="currency-popover"
+        placement="bottom end"
+        triggerRef={fieldRef}
+        offset={6}
+        containerPadding={8}
+        maxHeight={362}
+      >
+        <ListBox items={options} className="currency-listbox">
           {(currency) => (
             <ListBoxItem
               id={currency.code}
@@ -81,7 +101,28 @@ export default function CurrencyPicker({
                 <strong>{currency.code}</strong>
                 <span>{currency.name}</span>
               </span>
-              <span className="currency-option-symbol" aria-hidden="true">{currency.symbol}</span>
+              {currency === selected ? (
+                <svg
+                  className="currency-option-check"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="m3.5 8 3 3 6-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <span className="currency-option-symbol" aria-hidden="true">
+                  {currency.symbol}
+                </span>
+              )}
             </ListBoxItem>
           )}
         </ListBox>

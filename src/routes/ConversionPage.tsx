@@ -79,25 +79,13 @@ export default function ConversionPage() {
   return (
     <section className="page page-convert" aria-labelledby="convert-title">
       <div className="page-heading">
-        <div>
-          <h1 id="convert-title">Currency, made clear.</h1>
-        </div>
+        <h1 id="convert-title">Currency, made clear.</h1>
       </div>
 
       <div className="conversion-workspace">
         <div className="converter-grid">
           <article className="panel converter-panel">
-            <div className="panel-topline">
-              <span className="eyebrow">Amount</span>
-              <CurrencyPicker
-                currencies={currencies}
-                value={pair.from}
-                excludeCode={pair.to}
-                onChange={pair.setFrom}
-                aria-label="Convert from currency"
-              />
-            </div>
-            <label className="sr-only" htmlFor="convert-amount">
+            <label className="eyebrow" htmlFor="convert-amount">
               Amount
             </label>
             <input
@@ -108,9 +96,21 @@ export default function ConversionPage() {
               placeholder="0"
               onChange={(event) => updateAmount(event.target.value)}
             />
-            <span className="currency-name">
-              {currencies.find((currency) => currency.code === pair.from)?.name}
-            </span>
+            <div className="panel-currency">
+              <span className="currency-name">
+                {
+                  currencies.find((currency) => currency.code === pair.from)
+                    ?.name
+                }
+              </span>
+              <CurrencyPicker
+                currencies={currencies}
+                value={pair.from}
+                excludeCode={pair.to}
+                onChange={pair.setFrom}
+                aria-label="Convert from currency"
+              />
+            </div>
           </article>
 
           <button
@@ -131,12 +131,23 @@ export default function ConversionPage() {
             </svg>
           </button>
 
-          <article
-            className="panel converter-panel result-panel"
-            aria-live="polite"
-          >
-            <div className="panel-topline">
-              <span className="eyebrow">Converted amount</span>
+          <article className="panel converter-panel result-panel">
+            <span className="eyebrow">Converted amount</span>
+            {loading ? (
+              <div
+                className="result-skeleton"
+                aria-label="Loading conversion"
+                role="status"
+              />
+            ) : (
+              <div className="result-value" aria-live="polite">
+                {rate ? fmtCurrency(result, pair.to) : "—"}
+              </div>
+            )}
+            <div className="panel-currency">
+              <span className="currency-name">
+                {currencies.find((currency) => currency.code === pair.to)?.name}
+              </span>
               <CurrencyPicker
                 currencies={currencies}
                 value={pair.to}
@@ -145,20 +156,6 @@ export default function ConversionPage() {
                 aria-label="Convert to currency"
               />
             </div>
-            {loading ? (
-              <div
-                className="result-skeleton"
-                aria-label="Loading conversion"
-                role="status"
-              />
-            ) : (
-              <div className="result-value">
-                {rate ? fmtCurrency(result, pair.to) : "—"}
-              </div>
-            )}
-            <span className="currency-name">
-              {currencies.find((currency) => currency.code === pair.to)?.name}
-            </span>
           </article>
         </div>
 
@@ -169,7 +166,8 @@ export default function ConversionPage() {
           />
         )}
 
-        <div className="quick-amounts" aria-label="Quick amounts">
+        <div className="quick-amounts" role="group" aria-label="Quick amounts">
+          <span aria-hidden="true">Quick amounts</span>
           {QUICK_AMOUNTS.map((quickAmount) => (
             <button
               key={quickAmount}
@@ -201,7 +199,7 @@ export default function ConversionPage() {
           <strong>{rate?.date ?? "—"}</strong>
         </div>
         <Link
-          className="primary-button"
+          className="text-button history-link"
           to={`/history?from=${pair.from}&to=${pair.to}&range=1M`}
         >
           View history

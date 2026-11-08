@@ -88,14 +88,12 @@ export default function HistoryPage() {
   const change = percentageChange(current, open);
   const high = values.length ? Math.max(...values) : 0;
   const low = values.length ? Math.min(...values) : 0;
+  const hasHistory = !loading && !error && data.length > 0;
 
   return (
     <section className="page page-history" aria-labelledby="history-title">
-      <div className="page-heading history-heading">
-        <div>
-          <h1 id="history-title">Exchange-rate history</h1>
-        </div>
-        <p>See how your currency pair has moved over time.</p>
+      <div className="page-heading">
+        <h1 id="history-title">Exchange-rate history</h1>
       </div>
 
       <div className="history-toolbar">
@@ -121,26 +119,30 @@ export default function HistoryPage() {
           onChange={pair.setTo}
           aria-label="History to currency"
         />
-        <span className="history-range-label">
-          Past {range === "MAX" ? "maximum" : range}
-        </span>
       </div>
 
       <div className="history-summary" aria-live="polite">
         <div>
           <span className="eyebrow">Latest reference rate</span>
           <strong>
-            {current ? fmtRate(current) : "—"} <small>{pair.to}</small>
+            {hasHistory ? fmtRate(current) : "—"} <small>{pair.to}</small>
           </strong>
         </div>
-        {!loading && data.length > 0 && (
-          <Chg value={change} size={14} label={`${range} change`} />
+        {hasHistory && (
+          <>
+            <span className="history-change">
+              <Chg value={change} size={14} />
+              <span>{range === "MAX" ? "All-time" : range} change</span>
+            </span>
+            <span className="history-dates">
+              <time dateTime={data[0].date}>{data[0].date}</time>
+              {" – "}
+              <time dateTime={data[data.length - 1].date}>
+                {data[data.length - 1].date}
+              </time>
+            </span>
+          </>
         )}
-        <span>
-          {data.length
-            ? `${data[0].date} → ${data[data.length - 1].date}`
-            : "Loading date range…"}
-        </span>
       </div>
 
       <div className="panel history-chart-panel">
@@ -157,9 +159,7 @@ export default function HistoryPage() {
             retry={() => setRetryKey((key) => key + 1)}
           />
         )}
-        {!loading && !error && data.length > 0 && (
-          <RateChart data={data} quote={pair.to} />
-        )}
+        {hasHistory && <RateChart data={data} quote={pair.to} />}
         {!loading && !error && data.length === 0 && (
           <div className="empty-state">
             No history is available for this pair and range.
@@ -179,23 +179,17 @@ export default function HistoryPage() {
             </button>
           ))}
         </div>
-      </div>
-
-      <div className="history-stats">
-        {[
-          ["Current", current],
-          ["Open", open],
-          ["High", high],
-          ["Low", low],
-        ].map(([label, value]) => (
-          <div className="panel stat-card" key={label as string}>
-            <span className="eyebrow">{label}</span>
-            <strong>{fmtRate(value as number)}</strong>
-          </div>
-        ))}
-        <div className="panel stat-card">
-          <span className="eyebrow">Range change</span>
-          <Chg value={change} size={13} />
+        <div className="history-stats">
+          {[
+            { label: "Open", value: open },
+            { label: "High", value: high },
+            { label: "Low", value: low },
+          ].map(({ label, value }) => (
+            <div className="stat-card" key={label}>
+              <span className="eyebrow">{label}</span>
+              <strong>{hasHistory ? fmtRate(value) : "—"}</strong>
+            </div>
+          ))}
         </div>
       </div>
 

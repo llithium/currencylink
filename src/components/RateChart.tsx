@@ -5,6 +5,7 @@ import {
   CrosshairMode,
   LineStyle,
   createChart,
+  createSeriesMarkers,
   type AreaData,
   type ISeriesApi,
   type Time,
@@ -46,8 +47,9 @@ export default function RateChart({
     if (!container || !data.length) return;
     const rootStyles = getComputedStyle(document.documentElement);
     const color = (name: string) => rootStyles.getPropertyValue(name).trim();
-    const latestRate = data[data.length - 1].rate;
-    const minMove = latestRate < 1 ? 0.00001 : latestRate < 10 ? 0.0001 : 0.001;
+    const lastPoint = data[data.length - 1];
+    const minMove =
+      lastPoint.rate < 1 ? 0.00001 : lastPoint.rate < 10 ? 0.0001 : 0.001;
 
     const chart = createChart(container, {
       width: container.clientWidth,
@@ -56,10 +58,10 @@ export default function RateChart({
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: color("--chart-label"),
         fontFamily: '"Manrope", system-ui, sans-serif',
-        fontSize: 11,
+        fontSize: 12,
       },
       grid: {
-        vertLines: { color: color("--chart-grid"), style: LineStyle.Dotted },
+        vertLines: { visible: false },
         horzLines: { color: color("--chart-grid"), style: LineStyle.Dotted },
       },
       crosshair: {
@@ -79,12 +81,14 @@ export default function RateChart({
       },
       rightPriceScale: {
         borderVisible: false,
-        scaleMargins: { top: 0.18, bottom: 0.12 },
+        entireTextOnly: true,
+        scaleMargins: { top: 0.12, bottom: 0.12 },
       },
       timeScale: {
         borderVisible: false,
         rightOffset: 1,
         timeVisible: false,
+        tickMarkMaxCharacterLength: 5,
         fixLeftEdge: true,
         fixRightEdge: true,
       },
@@ -108,10 +112,8 @@ export default function RateChart({
       lineWidth: 2,
       crosshairMarkerBackgroundColor: color("--accent"),
       crosshairMarkerBorderColor: color("--surface"),
-      priceLineColor: color("--chart-price-line"),
-      priceLineStyle: LineStyle.Dashed,
-      priceLineWidth: 1,
-      lastValueVisible: true,
+      priceLineVisible: false,
+      lastValueVisible: false,
       priceFormat: {
         type: "price",
         precision: Math.max(0, Math.ceil(-Math.log10(minMove))),
@@ -121,6 +123,20 @@ export default function RateChart({
     seriesRef.current = series;
     series.setData(
       data.map((point) => ({ time: point.date as Time, value: point.rate })),
+    );
+    createSeriesMarkers(
+      series,
+      [
+        {
+          time: lastPoint.date as Time,
+          price: lastPoint.rate,
+          position: "atPriceMiddle",
+          shape: "circle",
+          color: color("--accent"),
+          size: 0.8,
+        },
+      ],
+      { autoScale: false },
     );
     chart.timeScale().fitContent();
     fitRef.current = () => chart.timeScale().fitContent();
@@ -160,26 +176,30 @@ export default function RateChart({
   const hoverChange = hover ? percentageChange(hover.rate, open) : 0;
 
   return (
-    <div className="market-chart-wrap">
-      <div className="chart-legend" aria-live="polite">
-        <span>{hover?.date ?? "—"}</span>
-        <strong>
-          {hover ? fmtRate(hover.rate) : "—"} {quote}
-        </strong>
-        {hover && (
-          <Chg value={hoverChange} size={11} label="Change from range open" />
-        )}
+    <div>
+      <div className="chart-readout">
+        <div className="chart-legend" aria-live="polite">
+          {hover && <time dateTime={hover.date}>{hover.date}</time>}
+          <strong>
+            {hover ? fmtRate(hover.rate) : "—"} {quote}
+          </strong>
+          {hover && (
+            <Chg value={hoverChange} size={11} label="Change from range open" />
+          )}
+        </div>
+        <button
+          type="button"
+          className="chart-reset"
+          onClick={() => fitRef.current?.()}
+          aria-label="Reset chart zoom"
+          title="Reset chart zoom"
+        >
+          Reset
+        </button>
       </div>
-      <button
-        type="button"
-        className="chart-reset"
-        onClick={() => fitRef.current?.()}
-        aria-label="Reset chart zoom"
-        title="Reset chart zoom"
-      >
-        Reset
-      </button>
-      <div className="market-chart" ref={containerRef} aria-hidden="true" />
+      <div className="market-chart-wrap">
+        <div className="market-chart" ref={containerRef} aria-hidden="true" />
+      </div>
       <p className="sr-only">
         {data.length
           ? `${quote} exchange-rate chart from ${data[0].date} to ${data[data.length - 1].date}. Open ${fmtRate(open)}, latest ${fmtRate(data[data.length - 1].rate)}.`

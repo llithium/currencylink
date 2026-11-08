@@ -130,7 +130,6 @@ function Root() {
               <span className="brand-mark" aria-hidden="true" />
               <span>Currency Link</span>
             </NavLink>
-            <ThemeToggle />
           </div>
 
           <nav className="primary-nav" aria-label="Primary navigation">
@@ -139,14 +138,13 @@ function Root() {
                 key={item.path}
                 to={{ pathname: item.path, search: location.search }}
                 end={item.path === "/"}
-                className={({ isActive }) =>
-                  `nav-link${isActive ? " nav-link-active" : ""}`
-                }
+                className="nav-link"
               >
                 {item.label}
               </NavLink>
             ))}
           </nav>
+          <ThemeToggle />
         </header>
 
         <main className="main-content">
@@ -155,28 +153,43 @@ function Root() {
 
         <aside className="watchlist" aria-label="Pinned rates">
           <div className="watchlist-heading">
-            <h2>Your pinned rates</h2>
+            <div>
+              <h2>Pinned rates</h2>
+              <p className="watchlist-basis">
+                Per 1 USD
+                {effectiveDate && (
+                  <>
+                    {" "}
+                    <span aria-hidden="true">·</span>{" "}
+                    <time dateTime={effectiveDate}>{effectiveDate}</time>
+                  </>
+                )}
+              </p>
+            </div>
             <Link to="/rates?base=USD">Manage currencies</Link>
           </div>
-          <p className="watchlist-basis">
-            USD reference rates{effectiveDate ? ` / ${effectiveDate}` : ""}
-          </p>
           <div className="ticker" aria-label="Pinned USD-based reference rates">
             {availableTickerCodes.length === 0 && (
               <Link className="ticker-empty" to="/rates?base=USD">
-                No pinned rates · Choose currencies on Rates
+                Choose currencies to pin
               </Link>
             )}
             {availableTickerCodes.map((code) => {
               const item = ticker[code];
               return (
                 <span className="ticker-item" key={code}>
-                  <span className="ticker-flag" aria-hidden="true">
-                    {currencyFlag(code)}
+                  <span className="ticker-currency">
+                    <span className="ticker-flag" aria-hidden="true">
+                      {currencyFlag(code)}
+                    </span>
+                    <strong>{code}</strong>
                   </span>
-                  <strong>{code}</strong>
-                  <span>{item ? fmtRate(item.rate) : "—"}</span>
-                  {item && <Chg value={item.change} size={10} />}
+                  <span className="ticker-values">
+                    <span>{item ? fmtRate(item.rate) : "—"}</span>
+                    {item && code !== "USD" && (
+                      <Chg value={item.change} size={11} />
+                    )}
+                  </span>
                 </span>
               );
             })}

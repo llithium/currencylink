@@ -136,6 +136,10 @@ test("rates pins persist and search opens the selected pair history", async ({
     .getByRole("textbox", { name: "Search currencies" })
     .fill("Japanese");
   await page.getByRole("button", { name: "Pin JPY reference rate" }).click();
+  const pinnedRow = page.locator(".rate-row").filter({
+    has: page.getByRole("button", { name: "Unpin JPY reference rate" }),
+  });
+  await expect(pinnedRow).toHaveCSS("display", "grid");
   await expect(
     page
       .getByLabel("Pinned USD-based reference rates")
