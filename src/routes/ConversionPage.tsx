@@ -133,17 +133,19 @@ export default function ConversionPage() {
 
           <article className="panel converter-panel result-panel">
             <span className="eyebrow">Converted amount</span>
-            {loading ? (
-              <div
-                className="result-skeleton"
-                aria-label="Loading conversion"
-                role="status"
-              />
-            ) : (
-              <div className="result-value" aria-live="polite">
-                {rate ? fmtCurrency(result, pair.to) : "—"}
-              </div>
-            )}
+            <div
+              className={loading ? "result-skeleton" : "result-value"}
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {loading ? (
+                <span className="sr-only">Loading conversion</span>
+              ) : rate ? (
+                fmtCurrency(result, pair.to)
+              ) : (
+                "—"
+              )}
+            </div>
             <div className="panel-currency">
               <span className="currency-name">
                 {currencies.find((currency) => currency.code === pair.to)?.name}
