@@ -39,3 +39,8 @@ bun run test
 bun run build
 bun run test:e2e
 ```
+
+The header and browser favicon share `public/favicon.svg`. After changing it,
+run `bun run generate:icons` to update the PNG favicons and touch icons
+(requires Playwright Chromium: `bunx playwright install chromium`). Bump the icon
+URL version in `index.html` and `src/index.css` so browsers refresh cached icons.
