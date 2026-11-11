@@ -126,7 +126,7 @@ button {
 
 @keyframes fallback-pulse {
   to {
-    transform: rotate(225deg) scale(1.25);
+    transform: rotate(270deg) scale(1.25);
     opacity: 0.5;
   }
 }
@@ -169,12 +169,11 @@ button {
 
 .brand-mark {
   display: inline-block;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   flex: none;
-  border: 6px solid var(--accent);
-  border-radius: 50% 50% 6px 50%;
-  transform: rotate(-45deg);
+  background: var(--accent);
+  mask: url("/favicon.svg?v=2") center / contain no-repeat;
 }
 
 .eyebrow {

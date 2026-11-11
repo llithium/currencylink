@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "generate:icons": "bun scripts/generate-icons.mjs",
     "build": "tsc && vite build",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",

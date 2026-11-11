@@ -89,6 +89,21 @@ test.afterEach(async ({ page }) => {
   expect(browserErrors.get(page) ?? []).toEqual([]);
 });
 
+test("header and browser tab use the same brand icon", async ({ page }) => {
+  await page.goto("/");
+  const favicon = await page
+    .locator('link[rel="icon"][type="image/svg+xml"]')
+    .getAttribute("href");
+  expect(favicon).toBeTruthy();
+  const brand = page.getByRole("link", { name: "Currency Link home" });
+  await expect(brand).toBeVisible();
+  const mask = await brand
+    .locator(".brand-mark")
+    .evaluate((element) => getComputedStyle(element).maskImage);
+  expect(mask).toBe(`url("${new URL(favicon!, page.url()).href}")`);
+  expect((await page.request.get(favicon!)).ok()).toBe(true);
+});
+
 test("conversion, responsive swap direction, and theme preference persist", async ({
   page,
 }, testInfo) => {
